@@ -17,6 +17,13 @@ enabled: true
 
 ## 一、先确认你有没有"工具箱"（npm 版默认没有）
 
+> **ARTEX 部署（本技能自带安装脚本）**：安装脚本就在本技能目录下
+> `scripts/setup.sh`，无需去 GitHub Release 取。执行
+> `bash <本技能目录>/scripts/setup.sh`（交互式，或 `--yes` 全自动 / `--check` 只体检）
+> 即等价于原文的 `$DSH_HOME/redteam/setup.sh`——`DSH_HOME` 默认 `~/.dsh`，工具装到
+> `$DSH_HOME/redteam/toolkit/`、凭据写 `$DSH_HOME/.env`，执行完下文所有
+> `$DSH_HOME` 引用照常成立。装完即进入下方"**有**工具箱"分支。
+
 npm 版 `dsh-redteam-mode` **不随包分发工具安装脚本与 9 份攻击链技能**（隧道 / 凭据 /
 WebShell / 反弹 Shell / 横向移动 / 未授权利用）。原因：npm 的发布期自动审查会把
 "包在安装后自动下载渗透二进制"判定为恶意行为特征，整包会被 Blocked。

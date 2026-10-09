@@ -317,12 +317,48 @@ ON CONFLICT DO NOTHING`, r.kind, r.pattern, r.note); err != nil {
 // builtinSkillVisibility maps a shipped skill's directory name → the built-in
 // agent keys that should see it by default. The skill FILES themselves live on the
 // filesystem (SkillDir, loaded by norma at runtime); DB only carries this visibility
-// binding. Skills omitted here (e.g. playwright-cli, scopesentry) ship invisible by
-// default — the user turns them on per-agent when needed. scopesentry additionally
-// declares `mcps: ScopeSentry`, which only takes effect once it's made visible and
-// that MCP is enabled/configured.
+// binding. ScopeSentry declares `mcps: ScopeSentry`, which takes effect once that
+// MCP is enabled/configured.
+//
+// 按技能性质分组（dsh-redteam-mode 融合的 23 个红队技能 + 浏览器/平台类）：
+//   侦察测绘/扫描检测/漏洞利用/隧道/内网 → 执行链上的 worker 与独立渗透 pentest；
+//   平台操作类（redteam-setup 引导、scopesentry 资产同步）→ auto 也可见；
+//   纯浏览器驱动（kimi-webbridge 需用户真实 Chrome）→ 仅 pentest。
 var builtinSkillVisibility = map[string][]string{
-	"api-recon": {"auto", "pentest", "worker"},
+	// ARTEX 原有
+	"api-recon":     {"auto", "pentest", "worker"},
+	"playwright-cli": {"pentest", "worker"},
+	"scopesentry":    {"auto", "pentest", "worker"},
+	// 红队融合 · 侦察测绘
+	"fofa-recon":        {"pentest", "worker"},
+	"passive-recon":     {"pentest", "worker"},
+	"recon-pipeline":    {"pentest", "worker"},
+	"asset-correlation": {"pentest", "worker"},
+	"web-fingerprint":   {"pentest", "worker"},
+	"cn-proxy-pool":     {"pentest", "worker"},
+	// 红队融合 · 浏览器驱动
+	"browser-automation": {"pentest", "worker"},
+	"kimi-webbridge":     {"pentest"},
+	// 红队融合 · 扫描检测
+	"active-scan":    {"pentest", "worker"},
+	"nuclei-scan":    {"pentest", "worker"},
+	"dir-bruteforce": {"pentest", "worker"},
+	// 红队融合 · 漏洞利用
+	"unauth-exploit":    {"pentest", "worker"},
+	"credential-attack": {"pentest", "worker"},
+	"webshell-toolkit":  {"pentest", "worker"},
+	// 红队融合 · 隧道
+	"chisel-tunnel": {"pentest", "worker"},
+	"frp-tunnel":    {"pentest", "worker"},
+	"suo5-tunnel":   {"pentest", "worker"},
+	// 红队融合 · 内网横向与落地
+	"fscan-intranet":    {"pentest", "worker"},
+	"gogo-intranet":     {"pentest", "worker"},
+	"lateral-movement":  {"pentest", "worker"},
+	"vps-reverse-shell": {"pentest", "worker"},
+	"shell-handler":     {"pentest", "worker"},
+	// 红队融合 · 环境引导
+	"redteam-setup": {"auto", "pentest"},
 }
 
 // seedBuiltinSkillVisibility binds the shipped built-in skills to their default

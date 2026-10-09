@@ -42,6 +42,8 @@ Thumbs.db
 /artex.old
 /artex.failed
 /artex.upgrade.json
+# 前台/守护运行日志
+/artex.log
 /server/webui/dist/
 /dist/
 

@@ -69,6 +69,9 @@ import type {
   NotificationDelivery,
   NotificationFilter,
   NotificationMeta,
+  PocCategory,
+  PocEntry,
+  PocOverview,
   PromptVar,
   PromptVersion,
   SessionTokenUsage,
@@ -1136,6 +1139,40 @@ export const api = {
       warnings: string[] | null;
       errors: string[] | null;
     }>("/sync/scopesentry/sync", body),
+
+  // ---- 知识库 (POC/EXP) ----
+  // 检索两层一体：layer=all(默认)/poc(自建)/nuclei(模板库)。
+  pocKbList: (params: {
+    q?: string;
+    cve?: string;
+    component?: string;
+    category?: string; // 逗号分隔多个
+    kind?: string;
+    layer?: string;
+    verified_only?: boolean;
+    engagement?: string;
+    asset?: string;
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v === undefined || v === "" || v === false) continue;
+      qs.set(k, v === true ? "1" : String(v));
+    }
+    const s = qs.toString();
+    return get<{ pocs: PocEntry[]; total: number }>(`/poc-kb${s ? `?${s}` : ""}`).then((r) => arr(r.pocs));
+  },
+  pocKbGet: (key: string | number) =>
+    get<{ poc: PocEntry }>(`/poc-kb/${encodeURIComponent(String(key))}`).then((r) => r.poc),
+  pocKbCategories: () =>
+    get<{ categories: PocCategory[] }>("/poc-kb/categories").then((r) => arr(r.categories)),
+  pocKbOverview: () => get<PocOverview>("/poc-kb/overview"),
+  pocKbSave: (poc: Partial<PocEntry>) => post<{ poc: PocEntry; created: boolean }>("/poc-kb", poc),
+  pocKbDelete: (key: string | number) =>
+    del<{ deleted: string }>(`/poc-kb/${encodeURIComponent(String(key))}`),
+  pocKbHit: (key: string | number, usedOn = "") =>
+    post<{ ok: boolean; id: number }>(`/poc-kb/${encodeURIComponent(String(key))}/hit`, { used_on: usedOn }),
 
   // ---- skills (文件系统) ----
   skills: () => get<{ skills: SkillItem[] }>("/skills").then((r) => arr(r.skills)),

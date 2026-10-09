@@ -874,6 +874,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sync/scopesentry/projects", s.syncSSProjects)
 	mux.HandleFunc("GET /api/sync/scopesentry/tasks", s.syncSSTasks)
 	mux.HandleFunc("POST /api/sync/scopesentry/sync", s.syncSSRun)
+	// POC/EXP 知识库（dsh-redteam-mode 融合；读写同 agent 侧 poc_kb_* 工具）
+	// 字面量路由（categories/overview）先于 {key} 通配注册，ServeMux 按更具体者优先匹配。
+	mux.HandleFunc("GET /api/poc-kb/categories", s.pocKbCategories)
+	mux.HandleFunc("GET /api/poc-kb/overview", s.pocKbOverview)
+	mux.HandleFunc("GET /api/poc-kb", s.pocKbList)
+	mux.HandleFunc("POST /api/poc-kb", s.pocKbSave)
+	mux.HandleFunc("GET /api/poc-kb/{key}", s.pocKbGet)
+	mux.HandleFunc("DELETE /api/poc-kb/{key}", s.pocKbDelete)
+	mux.HandleFunc("POST /api/poc-kb/{key}/hit", s.pocKbHit)
 	// Skill CRUD (文件系统)
 	mux.HandleFunc("GET /api/skills", s.fsListSkills)
 	mux.HandleFunc("POST /api/skills", s.fsCreateSkill)

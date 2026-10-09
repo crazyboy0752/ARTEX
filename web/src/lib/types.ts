@@ -1186,6 +1186,61 @@ export interface MCPTool {
   description: string;
 }
 
+// ---- 知识库 (POC/EXP) ----
+// 融合自 dsh-redteam-mode：全局共享、跨靶标复用。两层一体——自建 POC/EXP 库
+// (layer=poc) 与本机 nuclei 模板库 (layer=nuclei) 同表同搜。
+// 字段与 server/poc_kb_api.go 的 pocDTO 一一对应。
+export interface PocEntry {
+  id: number;
+  code: string; // 稳定标识（slug），智能体可直接引用
+  title: string;
+  kind: string; // poc | exp | script | template | payload
+  category: string; // 14 归类 code
+  category_name: string; // 中文归类名
+  layer: string; // poc | nuclei
+  cve: string;
+  component: string;
+  versions: string;
+  severity: string;
+  language: string;
+  source: string; // web | self | manual | nuclei-template | kb
+  source_url?: string;
+  description: string;
+  usage: string;
+  content?: string; // 详情才有；列表不含正文
+  path: string;
+  verified: boolean;
+  verified_note?: string;
+  hit_count: number; // 被智能体/人工复用次数
+  used_on?: string;
+  engagement?: string; // 来源靶标（溯源，非隔离维度）
+  asset?: string; // 发现资产（溯源）
+  found_by?: string;
+  tags?: string;
+  created_by?: string;
+  created_at: string; // RFC3339
+  updated_at: string;
+  has_content: boolean;
+  content_bytes: number;
+}
+
+// PocCategory 是 14 归类之一 + 库内条数（面板左侧归类导航用）。
+export interface PocCategory {
+  code: string;
+  name: string;
+  hint: string;
+  count: number;
+}
+
+// PocOverview 是知识库总览四个指标。
+export interface PocOverview {
+  total: number;
+  verified: number;
+  hits: number; // 累计复用次数
+  poc_layer: number;
+  nuclei_layer: number;
+}
+
 // ---- Skills ----
 // Fields align with the agentskills.io open specification.
 // description covers both "what the skill does" and "when to use it".

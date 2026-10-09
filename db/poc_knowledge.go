@@ -553,6 +553,39 @@ func (d *DB) RecordPocHit(ctx context.Context, id int64, usedOn string) error {
 	return err
 }
 
+// PocOverviewStats 知识库总览指标：总数、已验证数、两层各自条数、累计复用次数。
+// 面板头部四个数字一次取回，避免逐项 COUNT。
+func (d *DB) PocOverviewStats(ctx context.Context) (total, verified, pocLayer, nucleiLayer, hits int64, err error) {
+	err = d.QueryRowContext(ctx, `SELECT COUNT(*),
+		COUNT(*) FILTER (WHERE verified),
+		COUNT(*) FILTER (WHERE source <> $1),
+		COUNT(*) FILTER (WHERE source = $1),
+		COALESCE(SUM(hit_count), 0)
+		FROM poc_knowledge`, PocSourceNucleiTemplate).
+		Scan(&total, &verified, &pocLayer, &nucleiLayer, &hits)
+	return
+}
+
+// DeletePoc 删除一条知识库条目，key 可以是 code 或数字 id（与 GetPoc 同约定）。
+// 返回删除行数（0 = 不存在）。
+func (d *DB) DeletePoc(ctx context.Context, key string) (int64, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return 0, fmt.Errorf("poc key required")
+	}
+	var res sql.Result
+	var err error
+	if isDigits(key) {
+		res, err = d.ExecContext(ctx, `DELETE FROM poc_knowledge WHERE id = $1`, key)
+	} else {
+		res, err = d.ExecContext(ctx, `DELETE FROM poc_knowledge WHERE code = $1`, key)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 // PocCategoryStats 按 14 归类统计条数（面板分组展示用）。
 func (d *DB) PocCategoryStats(ctx context.Context) (map[string]int64, error) {
 	rows, err := d.QueryContext(ctx, `SELECT category, COUNT(*) FROM poc_knowledge GROUP BY category`)
@@ -585,14 +618,35 @@ var cvePattern = regexp.MustCompile(`(?i)CVE-\d{4}-\d{4,7}`)
 type nucleiInfoYAML struct {
 	ID   string `yaml:"id"`
 	Info struct {
-		Name           string `yaml:"name"`
-		Severity       string `yaml:"severity"`
-		Tags           string `yaml:"tags"`
+		Name        string `yaml:"name"`
+		Severity    string `yaml:"severity"`
+		Tags        string `yaml:"tags"`
+		Description string `yaml:"description"`
 		Classification struct {
-			CVEID []string `yaml:"cve-id"`
+			CVEID yamlStringList `yaml:"cve-id"`
 		} `yaml:"classification"`
 		Reference []string `yaml:"reference"`
 	} `yaml:"info"`
+}
+
+// yamlStringList 兼容 cve-id 的两种写法：标量（`cve-id: CVE-2021-44228`）与
+// 列表（`cve-id: [CVE-…]`）。此前固定 []string 会让标量形式整条解析失败，
+// 4392 个模板因此被跳过（含大量经典 CVE 模板）。
+type yamlStringList []string
+
+func (s *yamlStringList) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		if n.Value != "" {
+			*s = []string{n.Value}
+		}
+		return nil
+	}
+	var list []string
+	if err := n.Decode(&list); err != nil {
+		return err
+	}
+	*s = list
+	return nil
 }
 
 // nucleiTagsToCategory 按 nuclei tags 映射到 14 归类，命中不到再走关键词推测。
@@ -623,9 +677,13 @@ func nucleiTagsToCategory(tags, name string) string {
 		return "auth-bypass"
 	case has("unauth", "unauthenticated"):
 		return "unauthorized"
-	case has("default-login", "default-credential", "weak-password"):
+	// 弱口令族：default-login 之外，nuclei 的 login / token-spray 也是凭据爆破
+	// 类模板（裸 "login" 会同时命中 default-login/jwt-login，语义一致）。
+	case has("default-login", "default-credential", "weak-password", "token-spray", "login"):
 		return "weak-password"
-	case has("disclosure", "exposure", "info-leak", "information-disclosure"):
+	// 信息泄露族：exposure/misconfig/keys 是 nuclei 高频 tags——配置缺陷、
+	// 密钥与凭据文件暴露都归这里，能把大量原落 other 的模板归正。
+	case has("disclosure", "exposure", "info-leak", "information-disclosure", "misconfig", "keys"):
 		return "info-leak"
 	case has("privesc", "privilege-escalation"):
 		return "privesc"
@@ -716,11 +774,18 @@ func (d *DB) ImportNucleiTemplates(ctx context.Context, dir string) (imported, s
 			Language:    "nuclei",
 			Source:      PocSourceNucleiTemplate,
 			SourceURL:   strings.Join(refs, "\n"),
-			Description: fmt.Sprintf("nuclei 模板 %s（本地模板库 %s）", id, rel),
+			// 描述优先用模板自带的 info.description（漏洞成因与影响），空则退回溯源格式。
+			Description: strings.TrimSpace(tpl.Info.Description),
 			Usage:       fmt.Sprintf("nuclei -t %s -u <目标>", rel),
-			Path:        rel,
-			Tags:        strings.TrimSpace(tpl.Info.Tags),
-			CreatedBy:   "nuclei-import",
+			// 正文存模板 YAML 全文：面板详情可直接读到请求/匹配逻辑，
+			// 而不只是元数据（此前只索引 info 段导致详情页正文为空）。
+			Content:  string(raw),
+			Path:     rel,
+			Tags:     strings.TrimSpace(tpl.Info.Tags),
+			CreatedBy: "nuclei-import",
+		}
+		if p.Description == "" {
+			p.Description = fmt.Sprintf("nuclei 模板 %s（本地模板库 %s）", id, rel)
 		}
 		if _, _, err := d.SavePoc(ctx, p); err != nil {
 			skipped++
