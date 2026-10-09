@@ -1384,3 +1384,98 @@ CREATE INDEX IF NOT EXISTS idx_notification_deliveries_batch
     ON notification_deliveries(batch_id) WHERE batch_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_notification_deliveries_channel
     ON notification_deliveries(channel_id, id DESC);
+
+-- =====================================================================
+-- POC/EXP 知识库（全局共享、跨靶标复用）
+-- 融合自 dsh-redteam-mode 的 poc 知识库设计，移植到 PostgreSQL。
+-- 设计要点：
+--   1. 全局表：不带 company_id / task_id，天然跨靶标共享；
+--      engagement_id/name 与 asset_target 只是「来源溯源」（这条知识在
+--      哪个靶标、哪台资产上发现/验证），不是隔离维度。
+--   2. 两层一体：自建 POC/EXP（source != 'nuclei-template'）与本机 nuclei
+--      模板库（source = 'nuclei-template', kind = 'template',
+--      language = 'nuclei'）同表存储，按 CVE/组件/关键字一次搜两层，
+--      也可用 source 精确只搜一层。
+--   3. 14 归类（category）：rce / deserialization / file-upload / sqli /
+--      unauthorized / auth-bypass / weak-password / ssrf / xxe /
+--      path-traversal / info-leak / privesc / tunnel / other。
+--      与 findings.status 同理不加 CHECK，由 Go 侧白名单校验后落 other。
+--   4. 全文检索：tsvector 列 poc_search（simple 词典，兼容中英文），
+--      GIN 索引；CJK 子串场景由 Go 侧辅以 ILIKE 兜底。
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS poc_knowledge (
+    id          BIGSERIAL PRIMARY KEY,
+    -- 稳定标识（slug），智能体可直接引用；同 code 再次写入做合并刷新。
+    code        TEXT NOT NULL UNIQUE,
+    title       TEXT NOT NULL DEFAULT '',
+    -- poc | exp | script | template | payload
+    kind        TEXT NOT NULL DEFAULT 'poc',
+    -- 14 归类，见 db/poc_knowledge.go 的 PocCategories
+    category    TEXT NOT NULL DEFAULT 'other',
+    -- CVE / CNVD / 厂商编号
+    cve         TEXT NOT NULL DEFAULT '',
+    -- 组件/产品（Weblogic、Shiro、泛微 OA…）
+    component   TEXT NOT NULL DEFAULT '',
+    versions    TEXT NOT NULL DEFAULT '',
+    severity    TEXT NOT NULL DEFAULT '',
+    -- python | go | java | bash | http | nuclei | js | php
+    language    TEXT NOT NULL DEFAULT '',
+    -- web | self | manual | nuclei-template | kb；'nuclei-template' 即模板库那一层
+    source      TEXT NOT NULL DEFAULT 'self',
+    source_url  TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    -- 用法/命令行示例
+    usage       TEXT NOT NULL DEFAULT '',
+    -- 正文（脚本 / POC / 原始请求）；模板层只存元数据时可为空
+    content     TEXT NOT NULL DEFAULT '',
+    -- 落盘位置（pocs/<code>/<file>），便于智能体直接 cat
+    path        TEXT NOT NULL DEFAULT '',
+    verified    BOOLEAN NOT NULL DEFAULT FALSE,
+    -- 验证证据（哪台目标、什么回显）
+    verified_note TEXT NOT NULL DEFAULT '',
+    -- 被复用次数；每次被智能体取用后由 RecordPocHit 累加
+    hit_count   INTEGER NOT NULL DEFAULT 0,
+    -- 最近一次使用在哪个靶标/目标
+    used_on     TEXT NOT NULL DEFAULT '',
+    -- 来源溯源三维度：靶标 id / 靶标名 / 发现资产（建立时间看 created_at）
+    engagement_id   TEXT NOT NULL DEFAULT '',
+    engagement_name TEXT NOT NULL DEFAULT '',
+    asset_target    TEXT NOT NULL DEFAULT '',
+    found_by_agent  TEXT NOT NULL DEFAULT '',
+    tags        TEXT NOT NULL DEFAULT '',
+    created_by  TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- 全文列：标题/编号/组件/版本/标签/描述/正文
+    poc_search  TSVECTOR
+);
+-- 全文列自维护触发器
+CREATE OR REPLACE FUNCTION poc_knowledge_search_trigger() RETURNS trigger AS $$
+BEGIN
+    NEW.poc_search :=
+        setweight(to_tsvector('simple', coalesce(NEW.title, '')), 'A') ||
+        setweight(to_tsvector('simple', coalesce(NEW.cve, '')), 'A') ||
+        setweight(to_tsvector('simple', coalesce(NEW.component, '')), 'B') ||
+        setweight(to_tsvector('simple', coalesce(NEW.versions, '')), 'C') ||
+        setweight(to_tsvector('simple', coalesce(NEW.tags, '')), 'B') ||
+        setweight(to_tsvector('simple', coalesce(NEW.description, '')), 'C') ||
+        setweight(to_tsvector('simple', coalesce(NEW.content, '')), 'D');
+    NEW.updated_at := now();
+    RETURN NEW;
+END
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_poc_knowledge_search ON poc_knowledge;
+CREATE TRIGGER trg_poc_knowledge_search
+    BEFORE INSERT OR UPDATE OF title, cve, component, versions, tags,
+        description, content ON poc_knowledge
+    FOR EACH ROW EXECUTE FUNCTION poc_knowledge_search_trigger();
+-- 查询索引：CVE / 组件 / 归类 / 层（source）/ 三维度溯源 / 时间
+CREATE INDEX IF NOT EXISTS ix_poc_kb_cve ON poc_knowledge(cve);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_component ON poc_knowledge(component);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_category ON poc_knowledge(category);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_source ON poc_knowledge(source);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_kind ON poc_knowledge(kind, verified);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_engagement ON poc_knowledge(engagement_name);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_asset ON poc_knowledge(asset_target);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_created ON poc_knowledge(created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_poc_kb_search ON poc_knowledge USING GIN(poc_search);
