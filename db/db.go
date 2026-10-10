@@ -318,12 +318,26 @@ ON CONFLICT DO NOTHING`, r.kind, r.pattern, r.note); err != nil {
 // agent keys that should see it by default. The skill FILES themselves live on the
 // filesystem (SkillDir, loaded by norma at runtime); DB only carries this visibility
 // binding. ScopeSentry declares `mcps: ScopeSentry`, which takes effect once that
-// MCP is enabled/configured.
+// MCP is enabled/configured. wireAgentAugment 按此表为每个 agent 构建 Skill
+// 元工具——可见性 = 该 agent 能列出并调用哪些技能。
 //
-// 按技能性质分组（dsh-redteam-mode 融合的 23 个红队技能 + 浏览器/平台类）：
-//   侦察测绘/扫描检测/漏洞利用/隧道/内网 → 执行链上的 worker 与独立渗透 pentest；
-//   平台操作类（redteam-setup 引导、scopesentry 资产同步）→ auto 也可见；
-//   纯浏览器驱动（kimi-webbridge 需用户真实 Chrome）→ 仅 pentest。
+// 逐 agent 决策（结合职责特性，非一刀切）：
+//   goals 目标拆解 —— 纯 LLM 拆解可验证子目标，不执行 → 不给（拆的是目标不是手段）。
+//   planner 规划   —— prompt 红线"绝不在 plan 里把活干了"；意图是方向层，
+//                      worker 自己挑技能执行；判"方向是否已覆盖"靠图谱态势而非技能
+//                      菜单。给技能反而诱导它在 plan 里指派具体手段 → 不给。
+//   mainagent 主   —— 人机接口：把人的话落成 hint/意图 + 回答能力问询；环境引导
+//                      （redteam-setup）是对话活 → 只给引导类。
+//   worker 执行    —— 真正跑意图的，全攻击链（侦察/扫描/利用/隧道/内网）→ 除
+//                      对话引导(redteam-setup)与需用户真实 Chrome(kimi-webbridge)
+//                      外全给：执行环境里这两类要么不属于它、要么跑不了。
+//   auto 平台操作  —— 管任务/资产/skill/MCP，不参与渗透编排 → 只给平台集成类
+//                      (scopesentry/api-recon/recon-pipeline)与环境引导。
+//                      （recon-pipeline 还有用户在 UI 手动勾选的行，seed 不覆盖。）
+//   pentest 独立渗透 —— 对话驱动、一人从侦察走完整条链 → 全集。
+//   reporter 报告  —— 触发式查证据写 Markdown，不执行 → 不给。
+//   retester 复测  —— prompt 明确"只复测这一个漏洞、不要启动全量扫描"，PoC 在
+//                      retest context 自带 → 不给（给扫描技能违背其最小化原则）。
 var builtinSkillVisibility = map[string][]string{
 	// ARTEX 原有
 	"api-recon":     {"auto", "pentest", "worker"},
@@ -357,8 +371,8 @@ var builtinSkillVisibility = map[string][]string{
 	"lateral-movement":  {"pentest", "worker"},
 	"vps-reverse-shell": {"pentest", "worker"},
 	"shell-handler":     {"pentest", "worker"},
-	// 红队融合 · 环境引导
-	"redteam-setup": {"auto", "pentest"},
+	// 红队融合 · 环境引导（对话型：auto 与任务内人机接口 mainagent 都要能答"环境怎么配"）
+	"redteam-setup": {"auto", "pentest", "mainagent"},
 }
 
 // seedBuiltinSkillVisibility binds the shipped built-in skills to their default
