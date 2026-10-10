@@ -1278,6 +1278,21 @@ export interface MissingSkill {
   last_used?: string;
 }
 
+// SkillIssue / SkillCheckResult 是技能自检（GET /api/skills/checks）结果：
+// error = 跑不起来（缺 key/SKILL.md 坏/MCP 未启用）；warn = 降级可用
+// （工具二进制未装、无可见 agent）。OK = 无 error。
+export interface SkillIssue {
+  level: "error" | "warn";
+  label: string;
+  detail: string;
+}
+
+export interface SkillCheckResult {
+  name: string;
+  ok: boolean;
+  issues: SkillIssue[];
+}
+
 // ---- Tools (内置工具目录) ----
 // key + handler live in Go; only these fields are page-editable. system tools lock
 // the key and the parameter *structure* (name/type/required) — the per-param

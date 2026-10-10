@@ -78,6 +78,7 @@ import type {
   Settings,
   Severity,
   SkillCall,
+  SkillCheckResult,
   SkillItem,
   SSProject,
   SSTask,
@@ -828,8 +829,7 @@ export const api = {
   // 渠道是多实例资源（同一类型可配多个机器人、各有过滤规则），因此独立成组，
   // 不塞进扁平的 settings 键值里。
   notifyMeta: () => get<NotificationMeta>(`/notify/meta`),
-  notifyChannels: () =>
-    get<{ channels: NotificationChannel[] }>(`/notify/channels`).then((r) => arr(r.channels)),
+  notifyChannels: () => get<{ channels: NotificationChannel[] }>(`/notify/channels`).then((r) => arr(r.channels)),
   notifyCreateChannel: (payload: {
     name: string;
     kind: string;
@@ -1142,19 +1142,21 @@ export const api = {
 
   // ---- 知识库 (POC/EXP) ----
   // 检索两层一体：layer=all(默认)/poc(自建)/nuclei(模板库)。
-  pocKbList: (params: {
-    q?: string;
-    cve?: string;
-    component?: string;
-    category?: string; // 逗号分隔多个
-    kind?: string;
-    layer?: string;
-    verified_only?: boolean;
-    engagement?: string;
-    asset?: string;
-    limit?: number;
-    offset?: number;
-  } = {}) => {
+  pocKbList: (
+    params: {
+      q?: string;
+      cve?: string;
+      component?: string;
+      category?: string; // 逗号分隔多个
+      kind?: string;
+      layer?: string;
+      verified_only?: boolean;
+      engagement?: string;
+      asset?: string;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ) => {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
       if (v === undefined || v === "" || v === false) continue;
@@ -1165,12 +1167,10 @@ export const api = {
   },
   pocKbGet: (key: string | number) =>
     get<{ poc: PocEntry }>(`/poc-kb/${encodeURIComponent(String(key))}`).then((r) => r.poc),
-  pocKbCategories: () =>
-    get<{ categories: PocCategory[] }>("/poc-kb/categories").then((r) => arr(r.categories)),
+  pocKbCategories: () => get<{ categories: PocCategory[] }>("/poc-kb/categories").then((r) => arr(r.categories)),
   pocKbOverview: () => get<PocOverview>("/poc-kb/overview"),
   pocKbSave: (poc: Partial<PocEntry>) => post<{ poc: PocEntry; created: boolean }>("/poc-kb", poc),
-  pocKbDelete: (key: string | number) =>
-    del<{ deleted: string }>(`/poc-kb/${encodeURIComponent(String(key))}`),
+  pocKbDelete: (key: string | number) => del<{ deleted: string }>(`/poc-kb/${encodeURIComponent(String(key))}`),
   pocKbHit: (key: string | number, usedOn = "") =>
     post<{ ok: boolean; id: number }>(`/poc-kb/${encodeURIComponent(String(key))}/hit`, { used_on: usedOn }),
 
@@ -1216,6 +1216,7 @@ export const api = {
     get<{ calls: SkillCall[] }>(`/skills/${name}/usage?limit=${limit}`).then((r) => arr(r.calls)),
   missingSkills: (limit = 20) =>
     get<{ missing: MissingSkill[] }>(`/skills/missing?limit=${limit}`).then((r) => arr(r.missing)),
+  skillChecks: () => get<{ checks: SkillCheckResult[] }>("/skills/checks").then((r) => arr(r.checks)),
 
   // ---- visibility (MCP resource side) ---- (agent ids are strings per spec)
   resourceVisibility: (kind: string, id: number) =>
