@@ -326,13 +326,14 @@ ON CONFLICT DO NOTHING`, r.kind, r.pattern, r.note); err != nil {
 //   planner 规划   —— prompt 红线"绝不在 plan 里把活干了"；意图是方向层，
 //                      worker 自己挑技能执行；判"方向是否已覆盖"靠图谱态势而非技能
 //                      菜单。给技能反而诱导它在 plan 里指派具体手段 → 不给。
-//   mainagent 主   —— 人机接口：把人的话落成 hint/意图 + 回答能力问询；环境引导
-//                      （redteam-setup）是对话活 → 只给引导类。
+//   mainagent 主   —— 人机接口：把人的话落成 hint/意图，不执行 → 暂无专属技能
+//                      （原 redteam-setup 环境引导已平台化：工具链随部署装、配置走
+//                      控制台「红队环境变量」、体检走技能页自检）。
 //   worker 执行    —— 真正跑意图的，全攻击链（侦察/扫描/利用/隧道/内网）→ 除
-//                      对话引导(redteam-setup)与需用户真实 Chrome(kimi-webbridge)
-//                      外全给：执行环境里这两类要么不属于它、要么跑不了。
+//                      需用户真实 Chrome 的 kimi-webbridge 外全给（worker 服务器
+//                      环境没有桌面浏览器）。
 //   auto 平台操作  —— 管任务/资产/skill/MCP，不参与渗透编排 → 只给平台集成类
-//                      (scopesentry/api-recon/recon-pipeline)与环境引导。
+//                      (scopesentry/api-recon/recon-pipeline)。
 //                      （recon-pipeline 还有用户在 UI 手动勾选的行，seed 不覆盖。）
 //   pentest 独立渗透 —— 对话驱动、一人从侦察走完整条链 → 全集。
 //   reporter 报告  —— 触发式查证据写 Markdown，不执行 → 不给。
@@ -371,8 +372,6 @@ var builtinSkillVisibility = map[string][]string{
 	"lateral-movement":  {"pentest", "worker"},
 	"vps-reverse-shell": {"pentest", "worker"},
 	"shell-handler":     {"pentest", "worker"},
-	// 红队融合 · 环境引导（对话型：auto 与任务内人机接口 mainagent 都要能答"环境怎么配"）
-	"redteam-setup": {"auto", "pentest", "mainagent"},
 }
 
 // seedBuiltinSkillVisibility binds the shipped built-in skills to their default

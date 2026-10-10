@@ -414,8 +414,7 @@ export default function SystemSettingsPage() {
               红队环境变量
             </CardTitle>
             <CardDescription>
-              注入<b>所有 Agent 的命令执行环境</b>：技能（fofa-recon 测绘、redteam-setup 引导、 隧道与反弹 Shell
-              类）直接读这些变量，不再依赖手工 source ~/.dsh/.env。
+              注入<b>所有 Agent 的命令执行环境</b>：技能（fofa-recon 测绘、隧道与反弹 Shell 类）直接读这些变量，不再依赖手工 source ~/.dsh/.env。
               <br />
               <b>DSH_HOME</b> 未在此配置时默认 <code>~/.dsh</code>（与 setup.sh 一致）；技能里
               <code>$DSH_HOME/redteam/toolkit/...</code> 路径据此解析。保存后重建 Agent 生效。

@@ -230,7 +230,7 @@ func proxyEnv(proxyAddr, caCert string) []string {
 
 // redteamEnvEnv appends the platform-managed red-team environment (FOFA_KEY、
 // REDTEAM_VPS_HOST/KEY、DSH_HOME 等，存 settings.redteam_env) onto the Bash env
-// so skills like redteam-setup / fofa-recon / chisel-tunnel read configuration
+// so skills like fofa-recon / chisel-tunnel read configuration
 // straight from the process env — no ~/.dsh/.env source needed. Later entries win
 // in exec env semantics, so these override anything proxyEnv set (they never overlap:
 // proxy vars are HTTP(S)_PROXY/CA, red-team vars are feature config).

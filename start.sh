@@ -22,8 +22,8 @@ cd "$(dirname "$0")" || exit 1
 
 # 红队工具链未装时提示一条命令（不自动下载——几十 MB 由用户决定时机）。
 dsh="${DSH_HOME:-$HOME/.dsh}"
-if [ ! -d "$dsh/redteam/toolkit" ] && [ -f ./skills/redteam-setup/scripts/setup.sh ]; then
-  echo "[artex] 红队工具链未安装（扫描/隧道二进制）——安装：bash skills/redteam-setup/scripts/setup.sh" >&2
+if [ ! -d "$dsh/redteam/toolkit" ] && [ -f ./scripts/redteam-setup.sh ]; then
+  echo "[artex] 红队工具链未安装（扫描/隧道二进制）——安装：bash scripts/redteam-setup.sh" >&2
 fi
 
 BIN=./artex

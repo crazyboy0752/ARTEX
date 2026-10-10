@@ -60,7 +60,7 @@ install_docker(){
 # FOFA_KEY / VPS 等配置不在这里收：ARTEX 控制台「系统配置→红队环境变量」即可。
 # 非交互保障：--yes + stdin 关闭——setup.sh 的 ask 读到 EOF 自动跳过留空项。
 install_toolkit(){
-  local setup="skills/redteam-setup/scripts/setup.sh"
+  local setup="scripts/redteam-setup.sh"
   local dsh="${DSH_HOME:-$HOME/.dsh}"
   if [ ! -f "$setup" ]; then warn "未找到 $setup，跳过工具链安装"; return; fi
   if [ -d "$dsh/redteam/toolkit" ] && [ -n "$(ls -A "$dsh/redteam/toolkit" 2>/dev/null)" ]; then

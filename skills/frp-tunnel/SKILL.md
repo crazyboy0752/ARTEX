@@ -14,7 +14,7 @@ enabled: true
 > set -a; . "$DSH_HOME/.env" 2>/dev/null || . "$HOME/.dsh/.env"; set +a
 > VPS_USER="${REDTEAM_VPS_USER:-ubuntu}"; VPS="$REDTEAM_VPS_HOST"
 > ```
-> 没配过就跑一次 `setup.sh`（技能 `redteam-setup`），它同时会验证 SSH 连通性与载荷服务。
+> 没配过就跑一次部署包里的 `scripts/redteam-setup.sh`（安装/体检一体），它同时会验证 SSH 连通性与载荷服务。
 
 `frp` 是**最稳定、最常用**的穿透方案：VPS 上跑 `frps`（服务端），目标上跑 `frpc`（客户端），
 把内网的 socks5 或任意端口映射出来。相比 suo5/chisel，它**专为长期稳定运行设计**（自动重连、多路复用、TLS），

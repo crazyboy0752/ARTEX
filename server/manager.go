@@ -265,7 +265,7 @@ const (
 	settingGlobalProxy = "global_proxy"
 	// settingRedteamEnv 是平台管理的红队环境(FOFA_KEY、REDTEAM_VPS_HOST/KEY 等)，
 	// JSON map 存储；注入所有 agent 的 Bash 子进程 env，技能(fofa-recon /
-	// redteam-setup / 隧道类)直接从环境变量读，不再依赖 ~/.dsh/.env。
+	// 隧道类)直接从环境变量读，不再依赖 ~/.dsh/.env。
 	// DSH_HOME 未显式配置时由 RedteamEnv() 兜底补默认值。
 	settingRedteamEnv = "redteam_env"
 	settingWorkers    = "workers"

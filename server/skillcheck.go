@@ -103,23 +103,23 @@ var skillDepRules = map[string][]skillDep{
 	},
 	// 隧道（工具二进制由 redteam-setup 安装到 $DSH_HOME/redteam/toolkit）
 	"chisel-tunnel": {
-		depFile("缺 chisel 二进制", "跑 redteam-setup 技能的 scripts/setup.sh 安装", "$DSH_HOME/redteam/toolkit/chisel/chisel"),
+		depFile("缺 chisel 二进制", "跑 scripts/redteam-setup.sh 补装（或重跑 install.sh）", "$DSH_HOME/redteam/toolkit/chisel/chisel"),
 		depEnv("REDTEAM_VPS_HOST", "缺 REDTEAM_VPS_HOST", "隧道落点（user@ip），系统配置→红队环境变量"),
 	},
 	"frp-tunnel": {
-		depFile("缺 frps/frpc 二进制", "跑 redteam-setup 技能的 scripts/setup.sh 安装",
+		depFile("缺 frps/frpc 二进制", "跑 scripts/redteam-setup.sh 补装（或重跑 install.sh）",
 			"$DSH_HOME/redteam/toolkit/frp/frps", "$DSH_HOME/redteam/toolkit/frp/frpc"),
 		depEnv("REDTEAM_VPS_HOST", "缺 REDTEAM_VPS_HOST", "VPS 落点（user@ip），系统配置→红队环境变量"),
 	},
 	"suo5-tunnel": {
-		depFile("缺 suo5 二进制", "跑 redteam-setup 技能的 scripts/setup.sh 安装", "$DSH_HOME/redteam/toolkit/suo5/suo5-linux-amd64"),
+		depFile("缺 suo5 二进制", "跑 scripts/redteam-setup.sh 补装（或重跑 install.sh）", "$DSH_HOME/redteam/toolkit/suo5/suo5-linux-amd64"),
 	},
 	// 内网与落地
 	"fscan-intranet": {
-		depFile("缺 fscan 二进制", "跑 redteam-setup 技能的 scripts/setup.sh 安装", "$DSH_HOME/redteam/toolkit/fscan/fscan"),
+		depFile("缺 fscan 二进制", "跑 scripts/redteam-setup.sh 补装（或重跑 install.sh）", "$DSH_HOME/redteam/toolkit/fscan/fscan"),
 	},
 	"gogo-intranet": {
-		depFile("缺 gogo 二进制", "跑 redteam-setup 技能的 scripts/setup.sh 安装", "$DSH_HOME/redteam/toolkit/gogo/gogo"),
+		depFile("缺 gogo 二进制", "跑 scripts/redteam-setup.sh 补装（或重跑 install.sh）", "$DSH_HOME/redteam/toolkit/gogo/gogo"),
 	},
 	"shell-handler": {
 		depEnv("REDTEAM_VPS_HOST", "缺 REDTEAM_VPS_HOST", "反弹 Shell 落地 VPS（user@ip），系统配置→红队环境变量"),
@@ -127,10 +127,6 @@ var skillDepRules = map[string][]skillDep{
 	"vps-reverse-shell": {
 		depEnv("REDTEAM_VPS_HOST", "缺 REDTEAM_VPS_HOST", "落地 VPS（user@ip），系统配置→红队环境变量"),
 		depFile("缺 VPS SSH 私钥", "放置到 $DSH_HOME/redteam/toolkit/vps/id_rsa（chmod 600）", "$DSH_HOME/redteam/toolkit/vps/id_rsa"),
-	},
-	// 引导
-	"redteam-setup": {
-		depFile("缺 scripts/setup.sh", "环境一键铺装脚本（随技能分发，应始终存在）", "skills/redteam-setup/scripts/setup.sh", "$SELF/scripts/setup.sh"),
 	},
 }
 

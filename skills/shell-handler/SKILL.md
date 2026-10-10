@@ -14,7 +14,7 @@ enabled: true
 > set -a; . "$DSH_HOME/.env" 2>/dev/null || . "$HOME/.dsh/.env"; set +a
 > VPS_USER="${REDTEAM_VPS_USER:-ubuntu}"; VPS="$REDTEAM_VPS_HOST"
 > ```
-> 没配过就跑一次 `setup.sh`（技能 `redteam-setup`），它同时会验证 SSH 连通性与载荷服务。
+> 没配过就跑一次部署包里的 `scripts/redteam-setup.sh`（安装/体检一体），它同时会验证 SSH 连通性与载荷服务。
 
 **命令执行 ≠ 会话**。一次性的 `?cmd=whoami` 只能证明有洞，不能持续操作。本技能负责把"能执行命令"
 变成**稳定、可交互、可复用**的回连会话，并投递后续载荷（马、隧道、扫描器）。

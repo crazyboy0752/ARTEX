@@ -927,7 +927,7 @@ export interface Settings {
   // MITM 上游；关闭捕获时直接注入 agent 的 bash/WebFetch。空=直连。
   global_proxy?: string;
   // 红队环境(FOFA_KEY、REDTEAM_VPS_HOST/KEY 等)：平台管理，注入所有 agent 的 bash 子进程，
-  // 技能(fofa-recon/redteam-setup/隧道类)直接读环境变量。DSH_HOME 未配置时后端补默认 ~/.dsh。
+  // 技能(fofa-recon/隧道类)直接读环境变量。DSH_HOME 未配置时后端补默认 ~/.dsh。
   redteam_env?: Record<string, string>;
   python_interpreter?: string; // 自定义脚本工具的 python 解释器路径(空=运行时检测)
   workers?: number; // 并发工作 agent 数(默认3)；对之后启动的任务生效

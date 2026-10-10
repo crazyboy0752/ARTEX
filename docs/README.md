@@ -23,7 +23,7 @@
 
 红队技能位于仓库根目录 [`skills/`](../skills/)，ARTEX 服务端通过
 `skill.LoadDir` 按“每个子目录 = 一个技能、目录内 `SKILL.md` 为技能定义”
-的方式加载。本次合并新增 23 个技能：
+的方式加载。本次合并新增 22 个技能（原 `redteam-setup` 环境引导已平台化：工具链随部署安装、配置走控制台「红队环境变量」、体检走技能页自检，其安装脚本移至仓库 `scripts/redteam-setup.sh`）：
 
 | 技能 | 用途 |
 | --- | --- |
@@ -43,7 +43,6 @@
 | `nuclei-scan` | nuclei 模板化漏洞扫描：13,000+ 模板覆盖 CVE/暴露面/配置缺陷/默认口令 |
 | `passive-recon` | 被动信息收集：不接触目标主机，仅使用公开数据源 |
 | `recon-pipeline` | ProjectDiscovery 信息收集流水线：subfinder→dnsx→naabu→httpx→katana |
-| `redteam-setup` | 首次使用引导：FOFA_KEY 与 VPS 配置、通道验证、降级口径 |
 | `shell-handler` | 反弹 Shell 与载荷投递：VPS 监听接收 shell，或从目标主动拉取载荷 |
 | `suo5-tunnel` | suo5 经 WebShell/HTTP 建立 SOCKS5 隧道，把内网流量代理出来 |
 | `unauth-exploit` | 未授权访问与信息泄露利用链：Redis/MySQL/ES/Docker/MongoDB 等暴露服务 |

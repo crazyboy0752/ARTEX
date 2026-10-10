@@ -96,7 +96,7 @@ $TK/naabu/naabu -host 1.2.3.4 -p - -rate 1000 -silent
 2. **限速**：`naabu -rate 1000` 起步；`subfinder` 用被动源不加 `-all` 时更安静（配额消耗也少）。
 3. **泛解析**：`dnsx` 会过滤；如果结果里出现大量同 IP 的随机子域，说明目标有泛解析，改用 `-wd` 或换爆破字典。
 4. **API key（可选增强）**：`subfinder` 配置 `~/.config/subfinder/provider-config.yaml` 可接
-   Shodan/Censys/VirusTotal 等源（**需要用户提供 key**，见技能 `redteam-setup`）；没 key 也能用免费源。
+   Shodan/Censys/VirusTotal 等源（**key 在控制台「系统配置→红队环境变量」维护**）；没 key 也能用免费源。
 
 ## 输出与落库（强制）
 
