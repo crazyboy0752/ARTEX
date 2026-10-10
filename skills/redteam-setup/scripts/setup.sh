@@ -107,7 +107,7 @@ except Exception: sys.exit(1)
 for a in j.get('assets') or []:
     if pat.search(a['name']): print(a['name'], a['browser_download_url']); break
 " "$pat")"
-  if [ -z "${url:-}" ]; then bad "$repo 无匹配资产（$pat）"; return 1; fi
+  if [ -z "${url:-}" ]; then bad "$repo 无匹配资产（${pat}）"; return 1; fi
   # API 声明的字节数：下载后必须一字不差，否则就是截断（静默损坏比下载失败更危险——
   # 文件存在、可执行位也在，运行时却什么都不做。gowitness 踩过：少 7MB，跑起来零输出零产物）
   local want
@@ -119,15 +119,15 @@ except Exception: sys.exit(0)
 for a in j.get('assets') or []:
     if pat.search(a['name']): print(a.get('size') or 0); break
 " "$pat")"
-  dim "下载 $name（期望 ${want:-?} 字节）"
+  dim "下载 ${name}（期望 ${want:-?} 字节）"
   if curl -sL --retry 3 --retry-delay 2 --fail -m 600 "$url" -o "$out"; then
     local got; got="$(stat -c%s "$out" 2>/dev/null || echo 0)"
     if [ -n "$want" ] && [ "$want" != "0" ] && [ "$got" != "$want" ]; then
-      bad "$name 下载不完整：期望 $want 字节、实际 $got（截断），已删除，请重跑"
+      bad "$name 下载不完整：期望 $want 字节、实际 ${got}（截断），已删除，请重跑"
       rm -f "$out"; return 1
     fi
     [ "$chmod_x" = 1 ] && chmod +x "$out" 2>/dev/null
-    ok "$name → $out（$got 字节，与官方一致）"
+    ok "$name → ${out}（$got 字节，与官方一致）"
   else
     bad "$name 下载失败（curl 退出码 $?）"; return 1
   fi
@@ -185,6 +185,10 @@ say "工具箱   = $TK"
 
 # ═══ ① 工具安装 ════════════════════════════════════════════════════════════
 head_ "① 安装工具（缺失的才下）"
+if [ "$(uname -s)" = "Darwin" ]; then
+  warn "macOS 检测到：工具箱下载的是 linux_amd64 二进制，本机不可直接执行"
+  dim "macOS 仅做配置/体检；实际执行请在 Linux 部署机（ARTEX 生产环境）上运行本脚本"
+fi
 
 # --- 已在 PATH 的系统工具（Kali 自带，只体检） ---
 PATHD="nmap masscan nuclei sqlmap ffuf feroxbuster gobuster hydra john hashcat wpscan nikto whatweb amass theHarvester msfconsole searchsploit proxychains4 socat nc tmux"
@@ -198,65 +202,70 @@ else
 fi
 
 # --- 工具箱二进制（随包/下载） ---
-declare -A BIN=(
-  [fscan]="$TK/fscan/fscan"
-  [gogo]="$TK/gogo/gogo"
-  [suo5]="$TK/suo5/suo5-linux-amd64"
-  [chisel]="$TK/chisel/chisel"
-  [frpc]="$TK/frp/frpc"
-  [frps]="$TK/frp/frps"
-  [subfinder]="$TK/subfinder/subfinder"
-  [dnsx]="$TK/dnsx/dnsx"
-  [naabu]="$TK/naabu/naabu"
-  [httpx]="$TK/httpx/httpx"
-  [ksubdomain]="$TK/ksubdomain/ksubdomain"
-  [ligolo-proxy]="$TK/ligolo/proxy"
-  [ligolo-agent]="$TK/ligolo/agent"
-  [gowitness]="$TK/gowitness/gowitness"
-)
+# bash 3.2 兼容（macOS 自带）：不用 declare -A 关联数组——3.2 下 [key]=value
+# 的 key 会被当算术变量引用，set -u 直接 "unbound variable" 中断。
+bin_path(){ # bin_path <name> → 该工具在工具箱内的二进制路径
+  case "$1" in
+    fscan)        echo "$TK/fscan/fscan" ;;
+    gogo)         echo "$TK/gogo/gogo" ;;
+    suo5)         echo "$TK/suo5/suo5-linux-amd64" ;;
+    chisel)       echo "$TK/chisel/chisel" ;;
+    frpc)         echo "$TK/frp/frpc" ;;
+    frps)         echo "$TK/frp/frps" ;;
+    subfinder)    echo "$TK/subfinder/subfinder" ;;
+    dnsx)         echo "$TK/dnsx/dnsx" ;;
+    naabu)        echo "$TK/naabu/naabu" ;;
+    httpx)        echo "$TK/httpx/httpx" ;;
+    ksubdomain)   echo "$TK/ksubdomain/ksubdomain" ;;
+    ligolo-proxy) echo "$TK/ligolo/proxy" ;;
+    ligolo-agent) echo "$TK/ligolo/agent" ;;
+    gowitness)    echo "$TK/gowitness/gowitness" ;;
+  esac
+}
+TOOL_KEYS="fscan gogo suo5 chisel frpc frps subfinder dnsx naabu httpx ksubdomain ligolo-proxy ligolo-agent gowitness"
 
 if [ "$CHECK_ONLY" != 1 ]; then
   # fscan / gogo（内网渗透主力，国内工具，走 GitHub release）
-  doctor "${BIN[fscan]}" fscan
-  [ -x "${BIN[fscan]}" ] || { mkdir -p "$TK/fscan"; dl_asset "shadow1ng/fscan" "fscan_linux_amd64|linux_amd64.*\.(zip|tar\.gz)$" "$TK/fscan/fscan.zip" 0; }
-  [ -x "${BIN[gogo]}" ] || dim "gogo 需从 https://github.com/chainreactors/gogo/releases 手动取（无标准命名资产）"
+  doctor "$(bin_path fscan)" fscan
+  [ -x "$(bin_path fscan)" ] || { mkdir -p "$TK/fscan"; dl_asset "shadow1ng/fscan" "fscan_linux_amd64|linux_amd64.*\.(zip|tar\.gz)$" "$TK/fscan/fscan.zip" 0; }
+  [ -x "$(bin_path gogo)" ] || dim "gogo 需从 https://github.com/chainreactors/gogo/releases 手动取（无标准命名资产）"
 
   # suo5（WebShell 隧道核心）
-  doctor "${BIN[suo5]}" suo5
-  [ -x "${BIN[suo5]}" ] || { mkdir -p "$TK/suo5"; dl_asset "zema1/suo5" "suo5-linux-amd64" "${BIN[suo5]}"; }
+  doctor "$(bin_path suo5)" suo5
+  [ -x "$(bin_path suo5)" ] || { mkdir -p "$TK/suo5"; dl_asset "zema1/suo5" "suo5-linux-amd64" "$(bin_path suo5)"; }
 
   # chisel
-  doctor "${BIN[chisel]}" chisel
-  if [ ! -x "${BIN[chisel]}" ]; then
+  doctor "$(bin_path chisel)" chisel
+  if [ ! -x "$(bin_path chisel)" ]; then
     mkdir -p "$TK/chisel"
-    dl_asset "jpillora/chisel" "chisel_.*linux_amd64\.gz$" "$TK/chisel/chisel.gz" 0 && gunzip -f "$TK/chisel/chisel.gz" && mv -f "$TK/chisel/chisel" "${BIN[chisel]}" && chmod +x "${BIN[chisel]}"
+    dl_asset "jpillora/chisel" "chisel_.*linux_amd64\.gz$" "$TK/chisel/chisel.gz" 0 && gunzip -f "$TK/chisel/chisel.gz" && mv -f "$TK/chisel/chisel" "$(bin_path chisel)" && chmod +x "$(bin_path chisel)"
   fi
 
   # frp（frpc + frps，同一个 release 包内）
-  doctor "${BIN[frpc]}" frpc; doctor "${BIN[frps]}" frps
-  if [ ! -x "${BIN[frpc]}" ] || [ ! -x "${BIN[frps]}" ]; then
+  doctor "$(bin_path frpc)" frpc; doctor "$(bin_path frps)" frps
+  if [ ! -x "$(bin_path frpc)" ] || [ ! -x "$(bin_path frps)" ]; then
     mkdir -p "$TK/frp"
     dl_asset "fatedier/frp" "linux_amd64\.tar\.gz$" "$TK/frp/frp.tar.gz" 0 \
       && untar_all "$TK/frp/frp.tar.gz" "$TK/frp" frpc frps
   fi
 
   # ProjectDiscovery 三件套
-  doctor "${BIN[subfinder]}" subfinder
-  [ -x "${BIN[subfinder]}" ] || { mkdir -p "$TK/subfinder"; dl_asset "projectdiscovery/subfinder" "linux_amd64\.zip$" "$TK/subfinder/s.zip" 0 && python3 -c "import zipfile;zipfile.ZipFile('$TK/subfinder/s.zip').extractall('$TK/subfinder')" && chmod +x "${BIN[subfinder]}"; }
-  doctor "${BIN[dnsx]}" dnsx
-  [ -x "${BIN[dnsx]}" ]      || { mkdir -p "$TK/dnsx";      dl_asset "projectdiscovery/dnsx"      "linux_amd64\.zip$" "$TK/dnsx/d.zip" 0      && python3 -c "import zipfile;zipfile.ZipFile('$TK/dnsx/d.zip').extractall('$TK/dnsx')"           && chmod +x "${BIN[dnsx]}"; }
-  doctor "${BIN[naabu]}" naabu
-  [ -x "${BIN[naabu]}" ]     || { mkdir -p "$TK/naabu";     dl_asset "projectdiscovery/naabu"     "linux_amd64\.zip$" "$TK/naabu/n.zip" 0     && python3 -c "import zipfile;zipfile.ZipFile('$TK/naabu/n.zip').extractall('$TK/naabu')"         && chmod +x "${BIN[naabu]}"; }
-  doctor "${BIN[httpx]}" httpx
-  [ -x "${BIN[httpx]}" ]     || { mkdir -p "$TK/httpx";     dl_asset "projectdiscovery/httpx"     "linux_amd64\.zip$" "$TK/httpx/h.zip" 0     && python3 -c "import zipfile;zipfile.ZipFile('$TK/httpx/h.zip').extractall('$TK/httpx')"         && chmod +x "${BIN[httpx]}"; }
+  doctor "$(bin_path subfinder)" subfinder
+  [ -x "$(bin_path subfinder)" ] || { mkdir -p "$TK/subfinder"; dl_asset "projectdiscovery/subfinder" "linux_amd64\.zip$" "$TK/subfinder/s.zip" 0 && python3 -c "import zipfile;zipfile.ZipFile('$TK/subfinder/s.zip').extractall('$TK/subfinder')" && chmod +x "$(bin_path subfinder)"; }
+  doctor "$(bin_path dnsx)" dnsx
+  [ -x "$(bin_path dnsx)" ]      || { mkdir -p "$TK/dnsx";      dl_asset "projectdiscovery/dnsx"      "linux_amd64\.zip$" "$TK/dnsx/d.zip" 0      && python3 -c "import zipfile;zipfile.ZipFile('$TK/dnsx/d.zip').extractall('$TK/dnsx')"           && chmod +x "$(bin_path dnsx)"; }
+  doctor "$(bin_path naabu)" naabu
+  [ -x "$(bin_path naabu)" ]     || { mkdir -p "$TK/naabu";     dl_asset "projectdiscovery/naabu"     "linux_amd64\.zip$" "$TK/naabu/n.zip" 0     && python3 -c "import zipfile;zipfile.ZipFile('$TK/naabu/n.zip').extractall('$TK/naabu')"         && chmod +x "$(bin_path naabu)"; }
+  doctor "$(bin_path httpx)" httpx
+  [ -x "$(bin_path httpx)" ]     || { mkdir -p "$TK/httpx";     dl_asset "projectdiscovery/httpx"     "linux_amd64\.zip$" "$TK/httpx/h.zip" 0     && python3 -c "import zipfile;zipfile.ZipFile('$TK/httpx/h.zip').extractall('$TK/httpx')"         && chmod +x "$(bin_path httpx)"; }
 
   # ksubdomain（无状态子域爆破）
-  doctor "${BIN[ksubdomain]}" ksubdomain
-  [ -x "${BIN[ksubdomain]}" ] || { mkdir -p "$TK/ksubdomain"; dl_asset "knownsec/ksubdomain" "linux.*\.zip$" "$TK/ksubdomain/k.zip" 0 && python3 -c "import zipfile;zipfile.ZipFile('$TK/ksubdomain/k.zip').extractall('$TK/ksubdomain')" && chmod +x "${BIN[ksubdomain]}"; }
+  doctor "$(bin_path ksubdomain)" ksubdomain
+  [ -x "$(bin_path ksubdomain)" ] || { mkdir -p "$TK/ksubdomain"; dl_asset "knownsec/ksubdomain" "linux.*\.zip$" "$TK/ksubdomain/k.zip" 0 && python3 -c "import zipfile;zipfile.ZipFile('$TK/ksubdomain/k.zip').extractall('$TK/ksubdomain')" && chmod +x "$(bin_path ksubdomain)"; }
 
   # ligolo-ng（TUN 隧道备选）
-  doctor "${BIN[ligolo-proxy]}" ligolo-proxy; doctor "${BIN[ligolo-agent]}" ligolo-agent
-  if [ ! -x "${BIN[ligolo-proxy]}" ] || [ ! -x "${BIN[ligolo-agent]}" ]; then
+  doctor "$(bin_path ligolo-proxy)" ligolo-proxy; doctor "$(bin_path ligolo-agent)" ligolo-agent
+  if [ ! -x "$(bin_path ligolo-proxy)" ] || [ ! -x "$(bin_path ligolo-agent)" ]; then
     mkdir -p "$TK/ligolo"
     dl_asset "nicocha30/ligolo-ng" "proxy_.*linux_amd64\.tar\.gz$" "$TK/ligolo/proxy.tar.gz" 0 \
       && untar_all "$TK/ligolo/proxy.tar.gz" "$TK/ligolo" proxy
@@ -265,8 +274,8 @@ if [ "$CHECK_ONLY" != 1 ]; then
   fi
 
   # gowitness（批量截图留证）
-  doctor "${BIN[gowitness]}" gowitness
-  [ -x "${BIN[gowitness]}" ] || { mkdir -p "$TK/gowitness"; dl_asset "sensepost/gowitness" "gowitness-[0-9.]+-linux-amd64$" "${BIN[gowitness]}"; }
+  doctor "$(bin_path gowitness)" gowitness
+  [ -x "$(bin_path gowitness)" ] || { mkdir -p "$TK/gowitness"; dl_asset "sensepost/gowitness" "gowitness-[0-9.]+-linux-amd64$" "$(bin_path gowitness)"; }
 
   # OneForAll（子域收集，源码 + venv）
   OF_DIR="$TK/oneforall/OneForAll-0.4.5"
@@ -298,12 +307,12 @@ head_ "② nuclei 模板库"
 NT="$HOME/.local/nuclei-templates"
 if [ -d "$NT" ]; then
   NTC="$(find "$NT" -name '*.yaml' 2>/dev/null | wc -l | tr -d ' ')"
-  ok "模板库就位：$NT（$NTC 个模板）"
+  ok "模板库就位：${NT}（$NTC 个模板）"
   [ "$NTC" -lt 1000 ] && warn "模板数偏少，跑一次：nuclei -update-templates"
 elif have nuclei; then
   if [ "$CHECK_ONLY" != 1 ]; then
     dim "首次更新模板库（约 100MB，1-3 分钟）"
-    nuclei -update-templates >/dev/null 2>&1 && ok "模板库安装完成（$NT）" || bad "模板更新失败，稍后手动跑：nuclei -update-templates"
+    nuclei -update-templates >/dev/null 2>&1 && ok "模板库安装完成（${NT}）" || bad "模板更新失败，稍后手动跑：nuclei -update-templates"
   else
     warn "模板库不存在（跑 nuclei -update-templates）"
   fi
@@ -359,7 +368,7 @@ else
   if [ "$CHECK_ONLY" != 1 ]; then
     NEW="$(ask_secret '粘贴 FOFA_KEY（留空则跳过，稍后可用 setup.sh 再配）')"
     if [ -n "$NEW" ]; then
-      env_set FOFA_KEY "$NEW"; ok "FOFA_KEY 已写入 $ENV_FILE（重启 dsh web 后生效）"
+      env_set FOFA_KEY "$NEW"; ok "FOFA_KEY 已写入 ${ENV_FILE}（重启 dsh web 后生效）"
       # 立刻验一次有效性
       RESP="$(curl -s -m 20 "https://fofa.info/api/v1/info/my?key=$NEW" 2>/dev/null)"
       if printf '%s' "$RESP" | grep -q '"error":false'; then
@@ -387,7 +396,7 @@ if [ -f "$VPS_KEY_NOW" ]; then
       ANS="$(ask 'VPS 主机地址（只填 IP 或域名，用户名默认 '"$VPS_USER_NOW"')' '')"
       if [ -n "$ANS" ]; then
         env_set REDTEAM_VPS_HOST "$ANS"; env_set REDTEAM_VPS_USER "$VPS_USER_NOW"
-        VPS_HOST_NOW="$ANS"; ok "VPS 地址已写入 $ENV_FILE：$VPS_USER_NOW@$VPS_HOST_NOW"
+        VPS_HOST_NOW="$ANS"; ok "VPS 地址已写入 ${ENV_FILE}：$VPS_USER_NOW@$VPS_HOST_NOW"
       else
         warn "已跳过 —— 反弹 Shell / 载荷投递类技能会显示不可用"
       fi
@@ -395,7 +404,7 @@ if [ -f "$VPS_KEY_NOW" ]; then
   fi
 fi
 if [ -f "$VPS_KEY_NOW" ] && [ -n "$VPS_HOST_NOW" ]; then
-  ok "VPS 登录方式已就绪：$VPS_USER_NOW@$VPS_HOST_NOW（私钥 $VPS_KEY_NOW）"
+  ok "VPS 登录方式已就绪：$VPS_USER_NOW@${VPS_HOST_NOW}（私钥 ${VPS_KEY_NOW}）"
   if ssh -i "$VPS_KEY_NOW" -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=8 "$VPS_USER_NOW@$VPS_HOST_NOW" 'echo ok' >/dev/null 2>&1; then
     ok "VPS SSH 连通性正常"
   else
@@ -403,14 +412,14 @@ if [ -f "$VPS_KEY_NOW" ] && [ -n "$VPS_HOST_NOW" ]; then
     dim "排查：私钥权限（chmod 600）、安全组 22 端口、用户名是否正确"
   fi
 elif [ ! -f "$VPS_KEY_NOW" ]; then
-  warn "未找到 VPS 私钥（$VPS_KEY_NOW）—— 反弹 Shell 落地能力不可用"
+  warn "未找到 VPS 私钥（${VPS_KEY_NOW}）—— 反弹 Shell 落地能力不可用"
   dim "需要一台公网 VPS（用于接收反弹 Shell、中转载荷、做隧道出口）"
   if [ "$CHECK_ONLY" != 1 ]; then
     NEW_HOST="$(ask 'VPS 登录地址（user@ip）' 'ubuntu@')"
     NEW_KEY="$(ask 'VPS 私钥路径' "$TK/vps/id_rsa")"
     if [ -n "$NEW_HOST" ] && [ -f "$NEW_KEY" ]; then
       env_set REDTEAM_VPS_HOST "$NEW_HOST"; env_set REDTEAM_VPS_KEY "$NEW_KEY"
-      ok "VPS 登录方式已记录（$NEW_HOST）"
+      ok "VPS 登录方式已记录（${NEW_HOST}）"
       dim "把私钥放到 $NEW_KEY 并 chmod 600；或告知我们由你手动配置"
     else
       warn "已跳过 VPS 配置（无 VPS 时只能做不需要落地的成果：账号、数据、未授权）"
@@ -429,14 +438,17 @@ fi
 # ═══ ④ 体检表 ══════════════════════════════════════════════════════════════
 head_ "④ 体检（二进制可执行性）"
 FAILED=""; WEAK=""
-for name in "${!BIN[@]}"; do
-  p="${BIN[$name]}"
-  if [ ! -x "$p" ]; then bad "$name 缺失（$p）"; FAILED="$FAILED $name"; continue; fi
+# timeout 在 macOS 默认不存在（GNU coreutils 提供 gtimeout）——没有就裸跑，
+# stat -c%s 是 GNU 语法（BSD stat 用 -f%z）——统一用 wc -c 取字节数。
+TMO=""; command -v timeout >/dev/null 2>&1 && TMO="timeout 15"
+for name in $TOOL_KEYS; do
+  p="$(bin_path "$name")"
+  if [ ! -x "$p" ]; then bad "$name 缺失（${p}）"; FAILED="$FAILED $name"; continue; fi
   # 光有可执行位不算通过：真跑一次 --version/-version/-h，防止"截断的二进制"混过去
-  if timeout 15 "$p" --version >/dev/null 2>&1 || timeout 15 "$p" -version >/dev/null 2>&1 \
-     || timeout 15 "$p" -h >/dev/null 2>&1 || timeout 15 "$p" --help >/dev/null 2>&1 \
-     || timeout 15 "$p" version >/dev/null 2>&1; then
-    ok "$name（$(stat -c%s "$p") 字节，冒烟通过）"
+  if $TMO "$p" --version >/dev/null 2>&1 || $TMO "$p" -version >/dev/null 2>&1 \
+     || $TMO "$p" -h >/dev/null 2>&1 || $TMO "$p" --help >/dev/null 2>&1 \
+     || $TMO "$p" version >/dev/null 2>&1; then
+    ok "${name}（$(wc -c < "$p" | tr -d " ") 字节，冒烟通过）"
   else
     warn "$name 存在但无响应（可能截断/缺依赖）—— 重跑本脚本加 --force 重下"
     WEAK="$WEAK $name"
@@ -473,7 +485,7 @@ fi
 
 say ""
 say "下一步："
-say "  1) 若刚改了 $ENV_FILE（FOFA_KEY / VPS），重启 dsh web 让本进程读到新值"
+say "  1) 若刚改了 ${ENV_FILE}（FOFA_KEY / VPS），重启 dsh web 让本进程读到新值"
 say "  2) 进红队模式，指挥智能体第一个动作会跑 redteam_preflight 复核"
 say "  3) 直接给靶标单位名开工"
 say ""

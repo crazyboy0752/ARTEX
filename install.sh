@@ -48,9 +48,37 @@ install_docker(){
   info "拉取镜像并启动…"
   docker compose pull || true
   docker compose up -d
+  # 工具链装宿主机 ~/.dsh，compose 挂进容器（/root/.dsh），两边共享。
+  install_toolkit
   ok "启动完成 → http://localhost:8787"
   info "查看日志：docker compose logs -f artex"
 }
+
+# ── ③ 红队工具链（部署时一并装好）────────────────────────────────────────────
+# 把红队技能依赖的二进制(fscan/chisel/frp/suo5/subfinder…)装到
+# $DSH_HOME/redteam/toolkit（默认 ~/.dsh），并索引 nuclei 模板库。
+# FOFA_KEY / VPS 等配置不在这里收：ARTEX 控制台「系统配置→红队环境变量」即可。
+# 非交互保障：--yes + stdin 关闭——setup.sh 的 ask 读到 EOF 自动跳过留空项。
+install_toolkit(){
+  local setup="skills/redteam-setup/scripts/setup.sh"
+  local dsh="${DSH_HOME:-$HOME/.dsh}"
+  if [ ! -f "$setup" ]; then warn "未找到 $setup，跳过工具链安装"; return; fi
+  if [ -d "$dsh/redteam/toolkit" ] && [ -n "$(ls -A "$dsh/redteam/toolkit" 2>/dev/null)" ]; then
+    ok "红队工具链已装（$dsh/redteam/toolkit）——复核/重装：bash $setup --check"
+    return
+  fi
+  case "$(ask '安装红队工具链？(从 GitHub Releases 下载扫描/隧道二进制，约 100MB)' y)" in
+    y)
+      info "执行 setup.sh --yes（工具 + nuclei 模板 + 体检）…"
+      if bash "$setup" --yes </dev/null; then
+        ok "红队工具链就绪——缺项可在控制台技能页「自检」复核"
+      else
+        warn "工具链安装未完全成功——重跑：bash $setup"
+      fi ;;
+    *) info "已跳过——之后随时：bash $setup" ;;
+  esac
+}
+
 
 # ── ② 本地编译运行 ──────────────────────────────
 install_local(){
@@ -105,6 +133,8 @@ JSON
     CGO_ENABLED=0 go build -o artex ./cmd/artex
   fi
   ok "编译完成 → ./artex"
+
+  install_toolkit
 
   info "启动…（Ctrl-C 退出）"
   ./artex

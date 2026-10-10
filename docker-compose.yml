@@ -37,6 +37,10 @@ services:
       # 把项目根目录的 skills 挂进容器（覆盖镜像内置的 /app/skills）；
       # 改 skill 无需重建镜像，容器读的就是宿主机这份。
       - ./skills:/app/skills
+      # 红队工具链（install.sh 的 install_toolkit 装在宿主机 ~/.dsh）挂进容器：
+      # 容器内 DSH_HOME 默认 /root/.dsh，与宿主 ~/.dsh 对齐——agent 的 bash 与
+      # 技能($DSH_HOME/redteam/toolkit/...)直接用宿主机装好的二进制。
+      - ~/.dsh:/root/.dsh
     restart: unless-stopped
 
 volumes:

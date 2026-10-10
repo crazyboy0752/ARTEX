@@ -17,12 +17,19 @@ enabled: true
 
 ## 一、先确认你有没有"工具箱"（npm 版默认没有）
 
-> **ARTEX 部署（本技能自带安装脚本）**：安装脚本就在本技能目录下
-> `scripts/setup.sh`，无需去 GitHub Release 取。执行
-> `bash <本技能目录>/scripts/setup.sh`（交互式，或 `--yes` 全自动 / `--check` 只体检）
-> 即等价于原文的 `$DSH_HOME/redteam/setup.sh`——`DSH_HOME` 默认 `~/.dsh`，工具装到
-> `$DSH_HOME/redteam/toolkit/`、凭据写 `$DSH_HOME/.env`，执行完下文所有
-> `$DSH_HOME` 引用照常成立。装完即进入下方"**有**工具箱"分支。
+> **ARTEX 部署口径（工具链随部署装，不在会话里装）**：
+> - **安装脚本随技能分发**：本技能目录下 `scripts/setup.sh`（等价原文
+>   `$DSH_HOME/redteam/setup.sh`）。**部署 ARTEX 时 `install.sh` 已自动运行它**
+>   （`--yes` 非交互，只装工具 + nuclei 模板 + 体检；Docker 部署装宿主机 `~/.dsh`
+>   并挂进容器）。Docker 外手动部署时 `start.sh` 启动会检测并提示这条命令：
+>   `bash skills/redteam-setup/scripts/setup.sh`。
+> - **配置不在脚本里收**：`FOFA_KEY` / `REDTEAM_VPS_HOST` 走 ARTEX 控制台
+>   「系统配置 → 红队环境变量」维护，保存即注入所有 agent 环境——下文的
+>   交互式收集流程对 ARTEX 不适用，脚本读到 stdin EOF 会自动跳过。
+> - **本技能的角色**：技能页「自检」报缺（黄/红点）时，按缺项补跑上面这条
+>   安装命令或到设置页补配置；`--check` 只体检不安装。工具装在
+>   `$DSH_HOME/redteam/toolkit`（默认 `~/.dsh`），执行完下文 `$DSH_HOME` 引用
+>   照常成立，即下方"**有**工具箱"分支。
 
 npm 版 `dsh-redteam-mode` **不随包分发工具安装脚本与 9 份攻击链技能**（隧道 / 凭据 /
 WebShell / 反弹 Shell / 横向移动 / 未授权利用）。原因：npm 的发布期自动审查会把
