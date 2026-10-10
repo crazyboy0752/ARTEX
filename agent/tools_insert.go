@@ -655,6 +655,11 @@ func (t *ToolSet) WorkerTools() []actool.CoreTool {
 		t.searchAllWorkerTraces(), t.getWorkerTrace(),
 		// node_detail：worker 拿到 intent_id/节点 id 后可查该节点完整详情（配合上面的回看）。
 		t.nodeDetail(),
+		// poc_kb_*：Nday/1day 动手前先查知识库（search → get 取全文 → 用后 hit），
+		// 验证过的存回自建层（save，沉淀给后续任务复用）。此前只在 PlannerTools——
+		// planner 把"查知识库"写进意图，worker 却没有该工具，SearchExtraTools
+		// 搜空后只能降级裸扫（worker #26 实录）。
+		t.pocKBSearch(), t.pocKBGet(), t.pocKBHit(), t.pocKBSave(),
 		// 以下工具仍【不给】worker，只留给 planner/main（读上下文、跨 work 复盘是规划职责，
 		// worker 只做单条意图的执行与写回）：list_facts / list_companies / list_worker_traces。
 	}

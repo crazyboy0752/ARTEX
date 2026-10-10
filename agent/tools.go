@@ -2041,6 +2041,7 @@ func (t *ToolSet) PlannerTools() []actool.CoreTool {
 		t.addFinding(),
 		// poc_kb_*：POC/EXP 知识库（全局共享、跨靶标复用；自建库 + nuclei 模板库两层同搜）。
 		// Nday/1day 动手前先查库：search → get 取全文 → 用后 hit 登记复用。
+		// save（存回自建层）不给 planner：产出 POC 是执行者的活（worker/pentest）。
 		t.pocKBSearch(), t.pocKBGet(), t.pocKBHit(),
 		// list_companies：查看企业列表 + scope + 资产数（拿 company_id / 理解归属范围）。
 		t.listCompanies(),

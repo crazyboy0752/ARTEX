@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"strings"
 	"time"
 
@@ -142,5 +143,75 @@ func (t *ToolSet) pocKBHit() actool.CoreTool {
 				return actool.Errorf(err.Error()), nil
 			}
 			return jsonResult(map[string]any{"ok": true, "id": a.ID})
+		})
+}
+
+// pocKBSave 把验证过的 POC/EXP 存回知识库自建层：打完靶沉淀资产，
+// 后续任务动手前 poc_kb_search 先查库直接用，不重复造轮子。
+// 同 code 再存=覆盖刷新（SavePoc 语义）。溯源自动带：engagement=当前任务，
+// found_by=本 agent 名；asset 由调用方按发现填。
+func (t *ToolSet) pocKBSave() actool.CoreTool {
+	return t.writeExpTool("poc_kb_save",
+		"保存一条 POC/EXP 到知识库（自建层，全局共享、跨靶标复用）：验证过的漏洞把 payload/脚本/请求存回来，后续任务动手前先查库直接用。同 code 再存=覆盖刷新。verified=true 表示已实测跑通，配 verified_note 写清在哪台目标、什么回显。存完配合 poc_kb_hit 登记本次复用。",
+		obj(map[string]any{
+			"title":       str("漏洞/组件标题，如：泛微 OA 前台 SQL 注入（ecoffice）"),
+			"code":        str("稳定标识 slug；留空按标题+CVE 自动生成；同 code 覆盖刷新"),
+			"kind":        str("poc|exp|script|payload，默认 poc"),
+			"category":    str("14 归类：rce/deserialization/file-upload/sqli/unauthorized/auth-bypass/weak-password/ssrf/xxe/path-traversal/info-leak/privesc/tunnel/other；留空按内容关键词推测"),
+			"cve":         str("CVE/编号，如 CVE-2023-22518"),
+			"component":   str("组件/产品，如 泛微OA、Weblogic"),
+			"versions":    str("受影响版本"),
+			"severity":    str("critical|high|medium|low|info"),
+			"language":    str("python|bash|http|java|go…"),
+			"description": str("漏洞成因与影响（简述）"),
+			"usage":       str("用法/命令行示例，如 nuclei -t tpl.yaml -u <目标> 或手工请求"),
+			"content":     str("正文：完整 payload/脚本/原始请求报文（存成可直接复用的形态）"),
+			"tags":        str("标签，逗号分隔"),
+			"verified":    map[string]any{"type": "boolean", "description": "是否已实测跑通；true 时请填 verified_note"},
+			"verified_note": str("验证证据：在哪台目标、什么回显/时间"),
+			"asset":       str("发现/验证该 POC 的资产（IP/域名），溯源用；可省略"),
+		}, "title"),
+		func(ctx context.Context, in json.RawMessage) (actool.Result, error) {
+			var a struct {
+				Code, Title, Kind, Category, CVE, Component, Versions, Severity, Language string
+				Description, Usage, Content, Tags, VerifiedNote, Asset                   string
+				Verified                                                                  bool
+			}
+			_ = json.Unmarshal(in, &a)
+			if strings.TrimSpace(a.Title) == "" {
+				return actool.Errorf("title required：写清是什么漏洞/组件的 POC"), nil
+			}
+			// 留空的 category 按内容关键词推测（比落 other 有用，与 nuclei 导入同口径）。
+			cat := strings.TrimSpace(a.Category)
+			if cat == "" {
+				cat = db.GuessPocCategory(a.Title + " " + a.CVE + " " + a.Description + " " + a.Content)
+			}
+			// 溯源：任务 id 自动带（本条知识来自哪次任务），found_by=本 agent。
+			engagement := ""
+			if ri := RunInfoFrom(ctx); ri.TaskID > 0 {
+				engagement = strconv.FormatInt(ri.TaskID, 10)
+			} else if t.taskID > 0 {
+				engagement = strconv.FormatInt(t.taskID, 10)
+			}
+			p := &db.PocEntry{
+				Code: strings.TrimSpace(a.Code), Title: strings.TrimSpace(a.Title),
+				Kind: strings.TrimSpace(a.Kind), Category: cat,
+				CVE: strings.TrimSpace(a.CVE), Component: strings.TrimSpace(a.Component),
+				Versions: strings.TrimSpace(a.Versions),
+				Severity: strings.ToLower(strings.TrimSpace(a.Severity)),
+				Language: strings.TrimSpace(a.Language), Source: db.PocSourceSelf,
+				Description: a.Description, Usage: a.Usage, Content: a.Content,
+				Verified: a.Verified, VerifiedNote: strings.TrimSpace(a.VerifiedNote),
+				EngagementID: engagement, AssetTarget: strings.TrimSpace(a.Asset),
+				FoundByAgent: t.worker, Tags: strings.TrimSpace(a.Tags),
+			}
+			saved, created, err := t.ts.DBOf().SavePoc(ctx, p)
+			if err != nil {
+				return actool.Errorf(err.Error()), nil
+			}
+			return jsonResult(map[string]any{
+				"ok": true, "id": saved.ID, "code": saved.Code,
+				"created": created, "category": saved.Category,
+			})
 		})
 }
