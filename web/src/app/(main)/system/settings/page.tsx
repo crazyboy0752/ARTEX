@@ -2,7 +2,17 @@
 
 import * as React from "react";
 
-import { CpuIcon, FlaskConicalIcon, KeyboardIcon, RadioTowerIcon, SearchIcon, ShieldAlertIcon } from "lucide-react";
+import {
+  CpuIcon,
+  FlaskConicalIcon,
+  KeyboardIcon,
+  KeyRoundIcon,
+  PlusIcon,
+  RadioTowerIcon,
+  SearchIcon,
+  ShieldAlertIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -31,6 +41,14 @@ export default function SystemSettingsPage() {
   const [savingProxy, setSavingProxy] = React.useState(false);
   const [globalProxyInput, setGlobalProxyInput] = React.useState("");
   const [savingGlobalProxy, setSavingGlobalProxy] = React.useState(false);
+  // 红队环境：预置行（key 固定）+ 自定义行；保存时合成为一个 map。
+  const REDTEAM_PRESETS = [
+    { key: "FOFA_KEY", placeholder: "FOFA API Key（fofa-recon 资产测绘）" },
+    { key: "REDTEAM_VPS_HOST", placeholder: "user@ip（反弹 Shell 落地的 VPS）" },
+    { key: "REDTEAM_VPS_KEY", placeholder: "SSH 私钥路径（默认 $DSH_HOME/redteam/toolkit/vps/id_rsa）" },
+  ] as const;
+  const [redteamRows, setRedteamRows] = React.useState<{ key: string; value: string }[]>([]);
+  const [savingRedteam, setSavingRedteam] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -55,6 +73,14 @@ export default function SystemSettingsPage() {
     setTavilyKeySet(!!s.tavily_key_set);
     setProxyInput(s.web_search_proxy ?? "");
     setGlobalProxyInput(s.global_proxy ?? "");
+    const rt = s.redteam_env ?? {};
+    const presetKeys = new Set<string>(REDTEAM_PRESETS.map((p) => p.key));
+    setRedteamRows([
+      ...REDTEAM_PRESETS.map((p) => ({ key: p.key, value: rt[p.key] ?? "" })),
+      ...Object.entries(rt)
+        .filter(([k]) => !presetKeys.has(k))
+        .map(([key, value]) => ({ key, value })),
+    ]);
     setPyInterp(s.python_interpreter ?? "");
     setWorkers(String(s.workers ?? 3));
     setInjectPlanner(s.constraints_inject_planner !== false);
@@ -232,6 +258,23 @@ export default function SystemSettingsPage() {
       .finally(() => setSavingGlobalProxy(false));
   };
 
+  const saveRedteam = () => {
+    setSavingRedteam(true);
+    const env: Record<string, string> = {};
+    for (const r of redteamRows) {
+      const k = r.key.trim();
+      if (k) env[k] = r.value.trim();
+    }
+    api
+      .setSettings({ redteam_env: env })
+      .then((s) => {
+        apply(s);
+        toast.success("已保存红队环境变量（重建 Agent 后生效）");
+      })
+      .catch((e) => toast.error("保存失败：" + (e as Error).message))
+      .finally(() => setSavingRedteam(false));
+  };
+
   // Run a real "test" search ("test") against the CURRENT form values (backend +
   // proxy + entered key), falling back to saved values server-side. Toasts result.
   const runTest = () => {
@@ -367,6 +410,79 @@ export default function SystemSettingsPage() {
         <Card className="mb-4 break-inside-avoid md:mb-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRoundIcon className="size-4" />
+              红队环境变量
+            </CardTitle>
+            <CardDescription>
+              注入<b>所有 Agent 的命令执行环境</b>：技能（fofa-recon 测绘、redteam-setup 引导、 隧道与反弹 Shell
+              类）直接读这些变量，不再依赖手工 source ~/.dsh/.env。
+              <br />
+              <b>DSH_HOME</b> 未在此配置时默认 <code>~/.dsh</code>（与 setup.sh 一致）；技能里
+              <code>$DSH_HOME/redteam/toolkit/...</code> 路径据此解析。保存后重建 Agent 生效。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {redteamRows.map((row, i) => {
+              const preset = REDTEAM_PRESETS.find((p) => p.key === row.key);
+              return (
+                <div key={preset ? `preset:${row.key}` : `row:${i}`} className="flex items-center gap-2">
+                  <Input
+                    className="w-44 shrink-0 font-mono text-xs"
+                    placeholder="变量名"
+                    value={row.key}
+                    disabled={!!preset || !loaded}
+                    onChange={(e) =>
+                      setRedteamRows((rows) => rows.map((r, j) => (j === i ? { ...r, key: e.target.value } : r)))
+                    }
+                  />
+                  <Input
+                    className="flex-1 font-mono text-xs"
+                    autoComplete="off"
+                    placeholder={preset?.placeholder ?? "值"}
+                    value={row.value}
+                    disabled={!loaded || savingRedteam}
+                    onChange={(e) =>
+                      setRedteamRows((rows) => rows.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)))
+                    }
+                  />
+                  {!preset && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-8 shrink-0"
+                      title="删除该变量"
+                      disabled={!loaded || savingRedteam}
+                      onClick={() => setRedteamRows((rows) => rows.filter((_, j) => j !== i))}
+                    >
+                      <Trash2Icon className="size-3.5 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            <div className="mt-1 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!loaded || savingRedteam}
+                onClick={() => setRedteamRows((rows) => [...rows, { key: "", value: "" }])}
+              >
+                <PlusIcon className="size-3.5" />
+                添加变量
+              </Button>
+              <Button type="button" size="sm" onClick={saveRedteam} disabled={!loaded || savingRedteam}>
+                {savingRedteam ? "保存中…" : "保存"}
+              </Button>
+              <span className="text-muted-foreground text-xs">留空的行不会保存（= 清除该变量）</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4 break-inside-avoid md:mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
               <ShieldAlertIcon className="size-4" />
               操作约束注入
             </CardTitle>
@@ -444,8 +560,8 @@ export default function SystemSettingsPage() {
               记录代理，独立于流量捕获。
               <br />
               来源可选 <b>DuckDuckGo（ddgs）</b>（无需 Key）、<b>Brave（免费版）</b>（需填写 Brave API Key）、{" "}
-              <b>Tavily</b>（需填写 Tavily API Key）或 <b>DeepSeek</b>（复用当前 LLM 配置）。总开关关闭时，各
-              Agent 的网络搜索开关不可用。
+              <b>Tavily</b>（需填写 Tavily API Key）或 <b>DeepSeek</b>（复用当前 LLM 配置）。总开关关闭时，各 Agent
+              的网络搜索开关不可用。
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,7 @@ type Worker struct {
 	workDir         string
 	proxyAddr       string
 	proxyCACert     string            // recording proxy's CA cert path (for WebFetch HTTPS verify)
+	redteamEnv      map[string]string // 红队环境(FOFA_KEY/VPS 等，平台 settings 管理)
 	webSearch       WebSearchOpts     // web_search tool backend selection (off by default)
 	tx              *transcript.Store // raw LLM conversation persistence (nil = off)
 	window          int               // context window in tokens (for compaction)
@@ -188,6 +190,9 @@ func (w *Worker) compactionWindow() int {
 // that MITM proxy. Empty addr disables the hint.
 func (w *Worker) SetProxy(addr, caCert string) { w.proxyAddr, w.proxyCACert = addr, caCert }
 
+// SetRedteamEnv 注入平台管理的红队环境变量(FOFA_KEY、REDTEAM_VPS_*、DSH_HOME 等)。
+func (w *Worker) SetRedteamEnv(rt map[string]string) { w.redteamEnv = rt }
+
 // SetWebSearch selects the web_search backend for this worker (off by default).
 func (w *Worker) SetWebSearch(o WebSearchOpts) { w.webSearch = o }
 
@@ -219,6 +224,36 @@ func proxyEnv(proxyAddr, caCert string) []string {
 			"GIT_SSL_CAINFO="+caCert,
 			"NODE_EXTRA_CA_CERTS="+caCert,
 		)
+	}
+	return env
+}
+
+// redteamEnvEnv appends the platform-managed red-team environment (FOFA_KEY、
+// REDTEAM_VPS_HOST/KEY、DSH_HOME 等，存 settings.redteam_env) onto the Bash env
+// so skills like redteam-setup / fofa-recon / chisel-tunnel read configuration
+// straight from the process env — no ~/.dsh/.env source needed. Later entries win
+// in exec env semantics, so these override anything proxyEnv set (they never overlap:
+// proxy vars are HTTP(S)_PROXY/CA, red-team vars are feature config).
+func redteamEnvEnv(env []string, rt map[string]string) []string {
+	if len(rt) == 0 {
+		return env
+	}
+	// 稳定顺序，便于 diff/调试（map 遍历无序）。变量名单行且非空——含换行的
+	// key 直接丢弃（非法名，防 env 注入）。
+	keys := make([]string, 0, len(rt))
+	for k := range rt {
+		if k != "" && !strings.ContainsAny(k, "\r\n") {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		v := rt[k]
+		// env 值必须单行：换行会把一行拆成多行（粘贴带 \n 的值会变成额外的
+		// "VAR=..." 条目，属 env 注入）。键值在保存侧已 trim，这里兜底清洗。
+		v = strings.ReplaceAll(v, "\n", " ")
+		v = strings.ReplaceAll(v, "\r", " ")
+		env = append(env, k+"="+v)
 	}
 	return env
 }
@@ -450,7 +485,7 @@ func (w *Worker) execute(ctx context.Context, name string, taskID int64, as *db.
 		DeepSeekSearchModel:   w.webSearch.DeepSeekModel,
 		WebSearchProxy:        w.webSearch.Proxy,
 		// Bash 子命令的 HTTP 默认走记录代理 + 信任其 CA（工具无需 -x/-k）。
-		BashEnv:    proxyEnv(w.proxyAddr, w.proxyCACert),
+		BashEnv:    redteamEnvEnv(proxyEnv(w.proxyAddr, w.proxyCACert), w.redteamEnv), // 代理+CA+红队环境
 		WorkingDir: runDir,
 		MaxTurns:   w.maxTurns, // 0 = unlimited (configurable in agent management)
 		// 墙钟预算,轮边界判,不打断半路;0 = 不限。有任务级 deadline 时夹逼到 min(自身预算,

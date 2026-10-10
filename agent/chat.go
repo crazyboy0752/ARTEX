@@ -30,6 +30,7 @@ type ChatAgent struct {
 	window         int
 	proxyAddr      string
 	proxyCACert    string
+	redteamEnv     map[string]string // 红队环境(FOFA_KEY/VPS 等，平台 settings 管理)
 	webSearch      WebSearchOpts
 	guard          *guard.Guard // optional; nil disables intercept hooks for chat
 	nonStreamingFn func() bool  // resolver: use non-streaming (Complete) path? (nil = streaming)
@@ -66,6 +67,9 @@ func (c *ChatAgent) maxTokens() int {
 // SetProxy points the chat agent's WebFetch/Bash at the recording proxy plus the
 // CA cert it trusts (empty addr = direct). Kept for parity with the other agents.
 func (c *ChatAgent) SetProxy(addr, caCert string) { c.proxyAddr, c.proxyCACert = addr, caCert }
+
+// SetRedteamEnv 注入平台管理的红队环境变量(FOFA_KEY、REDTEAM_VPS_*、DSH_HOME 等)。
+func (c *ChatAgent) SetRedteamEnv(rt map[string]string) { c.redteamEnv = rt }
 
 // SetWebSearch selects the web_search backend for the chat agent (off by default).
 func (c *ChatAgent) SetWebSearch(o WebSearchOpts) { c.webSearch = o }
@@ -145,7 +149,7 @@ func (c *ChatAgent) Chat(ctx context.Context, agentKey, sessionID, message strin
 		DeepSeekSearchAPIKey:  ws.DeepSeekAPIKey,
 		DeepSeekSearchModel:   ws.DeepSeekModel,
 		WebSearchProxy:        ws.Proxy,
-		BashEnv:               proxyEnv(c.proxyAddr, c.proxyCACert), // Bash 子命令默认走代理+信任 CA
+		BashEnv:               redteamEnvEnv(proxyEnv(c.proxyAddr, c.proxyCACert), c.redteamEnv), // 代理+CA+红队环境
 		WorkingDir:            sessionWorkDir,
 		MaxTurns:              maxTurns,
 		MaxDuration:           maxDuration,

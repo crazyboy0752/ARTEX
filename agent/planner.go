@@ -32,6 +32,7 @@ type Planner struct {
 	steerWork         func(intentID int64, msg string) error // engine callback to steer a running work mid-run (nil = off)
 	proxyAddr         string                                 // recording proxy for WebFetch (empty = direct)
 	proxyCACert       string                                 // recording proxy's CA cert path (HTTPS verify)
+	redteamEnv        map[string]string                      // 红队环境(FOFA_KEY/VPS 等，平台 settings 管理)
 	webSearch         WebSearchOpts                          // web_search tool backend selection (off by default)
 	workDir           string                                 // shared work dir (surfaced in prompt as artifact-output target)
 	injectConstraints func() bool                            // resolver: inject task operation constraints into system prompt? (nil = yes)
@@ -91,6 +92,9 @@ func (p *Planner) compactionWindow() int {
 // SetProxy points the planner's WebFetch at the recording proxy plus the CA cert
 // it trusts to verify HTTPS through it (empty addr = direct).
 func (p *Planner) SetProxy(addr, caCert string) { p.proxyAddr, p.proxyCACert = addr, caCert }
+
+// SetRedteamEnv 注入平台管理的红队环境变量(FOFA_KEY、REDTEAM_VPS_*、DSH_HOME 等)。
+func (p *Planner) SetRedteamEnv(rt map[string]string) { p.redteamEnv = rt }
 
 // SetWebSearch selects the web_search backend for the planner (off by default).
 func (p *Planner) SetWebSearch(o WebSearchOpts) { p.webSearch = o }
@@ -423,7 +427,7 @@ func (p *Planner) Plan(ctx context.Context, taskID int64, as *db.AssetStore, ts 
 		DeepSeekSearchAPIKey:  p.webSearch.DeepSeekAPIKey,
 		DeepSeekSearchModel:   p.webSearch.DeepSeekModel,
 		WebSearchProxy:        p.webSearch.Proxy,
-		BashEnv:               proxyEnv(p.proxyAddr, p.proxyCACert), // Bash 子命令默认走代理+信任 CA
+		BashEnv:               redteamEnvEnv(proxyEnv(p.proxyAddr, p.proxyCACert), p.redteamEnv), // 代理+CA+红队环境
 		WorkingDir:            taskDir,                              // 本任务工作目录 <workDir>/tasks/<taskID>
 		ToolOutputDir:         cmdOutDir(taskDir),
 		MaxTurns:              p.maxTurns, // 0 = unlimited (configurable in agent management)

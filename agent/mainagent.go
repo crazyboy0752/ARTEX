@@ -27,6 +27,7 @@ type MainAgent struct {
 	maxTurns        int                                    // max agent turns per run (0 = unlimited)
 	proxyAddr       string                                 // recording proxy for WebFetch (empty = direct)
 	proxyCACert     string                                 // recording proxy's CA cert path (HTTPS verify)
+	redteamEnv      map[string]string                      // 红队环境(FOFA_KEY/VPS 等，平台 settings 管理)
 	webSearch       WebSearchOpts                          // web_search tool backend selection (off by default)
 	workDir         string                                 // shared work dir (surfaced in prompt as artifact-output target)
 	steerWork       func(intentID int64, msg string) error // engine callback: steer a running work (nil = off)
@@ -73,6 +74,9 @@ func (m *MainAgent) compactionWindow() int {
 // SetProxy points the main agent's WebFetch at the recording proxy plus the CA
 // cert it trusts to verify HTTPS through it (empty addr = direct).
 func (m *MainAgent) SetProxy(addr, caCert string) { m.proxyAddr, m.proxyCACert = addr, caCert }
+
+// SetRedteamEnv 注入平台管理的红队环境变量(FOFA_KEY、REDTEAM_VPS_*、DSH_HOME 等)。
+func (m *MainAgent) SetRedteamEnv(rt map[string]string) { m.redteamEnv = rt }
 
 // SetWebSearch selects the web_search backend for the main agent (off by default).
 func (m *MainAgent) SetWebSearch(o WebSearchOpts) { m.webSearch = o }
@@ -153,7 +157,7 @@ func (m *MainAgent) Chat(ctx context.Context, taskID int64, mainSeg int, as *db.
 		DeepSeekSearchAPIKey:  m.webSearch.DeepSeekAPIKey,
 		DeepSeekSearchModel:   m.webSearch.DeepSeekModel,
 		WebSearchProxy:        m.webSearch.Proxy,
-		BashEnv:               proxyEnv(m.proxyAddr, m.proxyCACert), // Bash 子命令默认走代理+信任 CA
+		BashEnv:               redteamEnvEnv(proxyEnv(m.proxyAddr, m.proxyCACert), m.redteamEnv), // 代理+CA+红队环境
 		WorkingDir:            mainDir,                              // 本任务工作目录 <workDir>/tasks/<taskID>
 		ToolOutputDir:         cmdOutDir(mainDir),
 		MaxTurns:              m.maxTurns,                             // 0 = unlimited (configurable in agent management)

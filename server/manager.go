@@ -245,6 +245,9 @@ type Manager struct {
 	// capture is on it becomes the MITM's upstream; when capture is off it is
 	// injected into agent bash env / WebFetch directly. See ProxyAddr.
 	globalProxy string
+	// redteamEnv 是红队环境变量快照(平台 settings → 注入 agent Bash env)。
+	// 读写都在 m.mu 下；构造 agent 时经 getter 拷贝一份。
+	redteamEnv map[string]string
 }
 
 // Settings keys the UI toggles at runtime.
@@ -260,8 +263,13 @@ const (
 	// (http/https/socks5). Empty = direct. Distinct from web_search_proxy (which
 	// only routes the search backend) and the per-profile LLM proxy.
 	settingGlobalProxy = "global_proxy"
-	settingWorkers     = "workers"
-	settingLLMRecord   = "llm_record"
+	// settingRedteamEnv 是平台管理的红队环境(FOFA_KEY、REDTEAM_VPS_HOST/KEY 等)，
+	// JSON map 存储；注入所有 agent 的 Bash 子进程 env，技能(fofa-recon /
+	// redteam-setup / 隧道类)直接从环境变量读，不再依赖 ~/.dsh/.env。
+	// DSH_HOME 未显式配置时由 RedteamEnv() 兜底补默认值。
+	settingRedteamEnv = "redteam_env"
+	settingWorkers    = "workers"
+	settingLLMRecord  = "llm_record"
 	// LLM 轮询(故障转移)。默认关闭——开启后走「全局激活配置」的 agent 在当前配置
 	// 不可用(余额不足/key 失效/限流/服务异常)时自动切到下一个配置。
 	// settingLLMPoolBindFallback 仅在轮询开启时有意义:默认关闭,即 agent/任务显式
@@ -433,6 +441,15 @@ func NewManager(dir, proxyAddr string) (*Manager, error) {
 	// off, ProxyAddr hands it to agents directly (bash env / WebFetch).
 	if v, ok, _ := pg.GetSetting(settingGlobalProxy); ok {
 		m.globalProxy = strings.TrimSpace(v)
+	}
+	// 红队环境(JSON map)。解析失败按空处理(不阻塞启动)。
+	if v, ok, _ := pg.GetSetting(settingRedteamEnv); ok && strings.TrimSpace(v) != "" {
+		var rt map[string]string
+		if err := json.Unmarshal([]byte(v), &rt); err == nil {
+			m.redteamEnv = rt
+		} else {
+			log.Printf("[redteam] redteam_env 解析失败，已忽略: %v", err)
+		}
 	}
 	if m.traffic != nil {
 		if err := m.traffic.SetUpstreamProxy(m.globalProxy); err != nil {
@@ -797,6 +814,52 @@ func (m *Manager) SetGlobalProxy(raw string) error {
 	}
 	// Keep the browser MCP's egress in sync with the new global proxy too.
 	m.syncBrowserMCPProxy()
+	return nil
+}
+
+// RedteamEnv returns a copy of the red-team env map. DSH_HOME is guaranteed
+// present: skills reference $DSH_HOME/redteam/toolkit/... paths, and the default
+// matches setup.sh (DSH_HOME=${DSH_HOME:-$HOME/.dsh}) — user override wins.
+func (m *Manager) RedteamEnv() map[string]string {
+	m.mu.RLock()
+	out := make(map[string]string, len(m.redteamEnv)+1)
+	for k, v := range m.redteamEnv {
+		out[k] = v
+	}
+	m.mu.RUnlock()
+	if _, ok := out["DSH_HOME"]; !ok {
+		if home, err := os.UserHomeDir(); err == nil {
+			out["DSH_HOME"] = filepath.Join(home, ".dsh")
+		}
+	}
+	return out
+}
+
+// SetRedteamEnv persists the red-team env map (JSON) and refreshes the in-memory
+// snapshot. Callers must rebuild agents (applyLLM) afterwards so the Bash env picks
+// it up. Empty map clears the setting (DSH_HOME default still applies at read).
+func (m *Manager) SetRedteamEnv(rt map[string]string) error {
+	if rt == nil {
+		rt = map[string]string{}
+	}
+	for k, v := range rt {
+		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+		if k == "" {
+			delete(rt, k)
+			continue
+		}
+		rt[k] = v
+	}
+	raw, err := json.Marshal(rt)
+	if err != nil {
+		return err
+	}
+	if err := m.pg.SetSetting(settingRedteamEnv, string(raw)); err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.redteamEnv = rt
+	m.mu.Unlock()
 	return nil
 }
 

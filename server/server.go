@@ -471,6 +471,7 @@ func (s *Server) applyLLM(cfg agent.Config) error {
 	// (backend/key) and gates Enabled per-conversation-agent at Chat time. 对话始终用激活配置。
 	s.chatAgent = agent.NewChatAgent(prov, cfg.Model, s.m.dir, tx, win) // chat page runner
 	s.chatAgent.SetProxy(s.m.ProxyAddr(), s.m.ProxyCACert())
+	s.chatAgent.SetRedteamEnv(s.m.RedteamEnv())
 	s.chatAgent.SetWebSearch(s.m.WebSearchOpts())
 	s.chatAgent.SetGuard(s.chatGuard())
 	s.chatAgent.SetNonStreaming(nonStreamingResolver(cfg))
@@ -612,6 +613,7 @@ func (s *Server) chatAgentForProfile(id int64) *agent.ChatAgent {
 	tx := transcript.NewStore(filepath.Join(s.m.dir, "transcripts"))
 	ca := agent.NewChatAgent(s.poolForBinding(id, prov, cfg), cfg.Model, s.m.dir, tx, cfg.CompactionWindow())
 	ca.SetProxy(s.m.ProxyAddr(), s.m.ProxyCACert())
+	ca.SetRedteamEnv(s.m.RedteamEnv())
 	ca.SetWebSearch(s.m.WebSearchOpts())
 	ca.SetGuard(s.chatGuard())
 	ca.SetNonStreaming(nonStreamingResolver(cfg))
@@ -3308,6 +3310,7 @@ func (s *Server) settingsPayload() map[string]any {
 		"tavily_key_set":           strings.TrimSpace(tavilyKey) != "",
 		"web_search_proxy":         proxy,                       // 独立出口代理(http/https/socks5)，空=直连
 		"global_proxy":             s.m.GlobalProxy(),           // 全局出口代理(http/https/socks5)，所有目标流量走它，空=直连
+		"redteam_env":              s.m.RedteamEnv(),            // 红队环境(FOFA_KEY/REDTEAM_VPS_* 等)，注入 agent Bash env
 		"python_interpreter":       strings.TrimSpace(pyStored), // 用户/自动设的值(空=用运行时检测)
 		"workers":                  s.m.Workers(),               // 并发工作 agent 数(默认3)；对之后启动的任务生效
 		"task_concurrency_enabled": concOn,                      // 任务并发上限开关(默认关)
@@ -3380,6 +3383,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		TavilyKey        *string `json:"tavily_search_api_key"`
 		WebSearchProxy   *string `json:"web_search_proxy"`   // 独立出口代理(http/https/socks5)；null=不改，""=清空
 		GlobalProxy      *string `json:"global_proxy"`       // 全局出口代理(http/https/socks5)；null=不改，""=清空(直连)
+		RedteamEnv       *map[string]string `json:"redteam_env"` // 红队环境(FOFA_KEY/REDTEAM_VPS_* 等)；null=不改，{}=清空
 		PythonInterp     *string `json:"python_interpreter"` // 自定义脚本工具的 python 解释器路径
 		Workers          *int    `json:"workers"`            // 并发工作 agent 数(>0)；对之后启动的任务生效
 		// 任务并发上限:同时「运行中」的任务数上限。关闭=不限;开启后新建任务超限则排队,有空位自动启动。
@@ -3533,6 +3537,14 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		changed = true // capture-off egress is baked into agents at build time → rebuild
+	}
+	if req.RedteamEnv != nil {
+		// 红队环境烘焙进各 agent 的 BashEnv(构造时定) → 改后需重建 agent。
+		if err := s.m.SetRedteamEnv(*req.RedteamEnv); err != nil {
+			writeErr(w, 500, err.Error())
+			return
+		}
+		changed = true
 	}
 	if req.WebSearchEnabled != nil || req.WebSearchBackend != nil || req.BraveKey != nil || req.TavilyKey != nil || req.WebSearchProxy != nil {
 		// Fill unspecified fields from current state so a partial PUT doesn't reset them.
