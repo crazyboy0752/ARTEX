@@ -1820,6 +1820,12 @@ func (s *Server) pgSaveProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := pg.SaveProfile(&p)
 	if err != nil {
+		// 重名撞 llm_profiles_name_key（SQLSTATE 23505）是客户端问题：翻译成
+		// 409 中文，别把 PG 裸错甩给用户（新增与"改名撞已有配置"同一路径）。
+		if strings.Contains(err.Error(), "llm_profiles_name_key") || strings.Contains(err.Error(), "23505") {
+			writeErr(w, 409, `配置名称已存在：「`+strings.TrimSpace(p.Name)+`」，请换一个名称（现有配置名不可重复）`)
+			return
+		}
 		writeErr(w, 500, err.Error())
 		return
 	}

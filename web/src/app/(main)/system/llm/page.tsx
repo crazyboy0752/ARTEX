@@ -423,6 +423,19 @@ function ProfileSheet({
     if (saving) return;
     setSaving(true);
     try {
+      // 重名预检：唯一键在库侧（llm_profiles_name_key），但提前拦住能给出即时
+      // 中文反馈——后端对 23505 也会回 409 兜底，预检失败不挡保存。
+      const trimmed = name.trim();
+      try {
+        const existing = await api.llmProfiles();
+        const meId = profile ? String(profile.id) : null;
+        if (existing.some((p) => p.name.trim() === trimmed && String(p.id) !== meId)) {
+          toast.error(`配置名称已存在：「${trimmed}」，请换一个名称（现有配置名不可重复）`);
+          return;
+        }
+      } catch {
+        /* 预检拉取失败不拦保存，交给后端 409 兜底 */
+      }
       const { id } = await api.saveLLMProfile({
         ...(profile ? { id: Number(profile.id) } : {}),
         name: name.trim(),
