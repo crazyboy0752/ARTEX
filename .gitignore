@@ -62,3 +62,5 @@ Thumbs.db
 /bench/
 /Dockerfile.bench
 /Dockerfile.bench.v2
+# 隧道守护运行日志
+scripts/socks5-watchdog.log
