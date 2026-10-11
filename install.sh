@@ -54,6 +54,29 @@ install_docker(){
   info "查看日志：docker compose logs -f artex"
 }
 
+# ── macOS：GNU timeout（agent 限时执行的基础命令）──────────────────────────────
+# macOS 不自带 timeout（GNU coreutils 产物），而 agent 大量用 timeout N cmd 限时跑
+# 扫描——缺了会 "command not found"，再被 2>/dev/null 吞掉就成了假阴性（扫了但
+# 其实没跑）。Linux 自带，无需处理。
+ensure_timeout(){
+  if command -v timeout >/dev/null 2>&1; then
+    ok "timeout：$(timeout --version 2>/dev/null | head -1 || echo 已就位)"
+    return
+  fi
+  case "$(uname -s)" in
+    Darwin)
+      command -v brew >/dev/null 2>&1 || { warn "macOS 缺 timeout 且未装 Homebrew——agent 限时执行会失败"; return; }
+      if [ "$(ask '安装 coreutils 提供 timeout？(y/n)' y)" = y ]; then
+        brew install coreutils >/dev/null 2>&1 || die "coreutils 安装失败"
+        ln -sf "$(brew --prefix)/bin/gtimeout" "$(brew --prefix)/bin/timeout"
+        ok "timeout 已就绪 → $(brew --prefix)/bin/timeout"
+      else
+        warn "已跳过——agent 的 timeout N cmd 会 command not found（且易被吞成假阴性）"
+      fi ;;
+    *) warn "PATH 中无 timeout（Linux 通常自带 coreutils，异常）" ;;
+  esac
+}
+
 # ── ③ 红队工具链（部署时一并装好）────────────────────────────────────────────
 # 把红队技能依赖的二进制(fscan/chisel/frp/suo5/subfinder…)装到
 # $DSH_HOME/redteam/toolkit（默认 ~/.dsh），并索引 nuclei 模板库。
@@ -120,6 +143,7 @@ JSON
   # go 环境检查
   command -v go >/dev/null 2>&1 || die "未检测到 Go，请先安装 Go（>=1.26）：https://go.dev/dl/"
   ok "Go: $(go version)"
+  ensure_timeout
 
   # 内嵌前端需要 node 出静态产物
   if command -v npm >/dev/null 2>&1; then
