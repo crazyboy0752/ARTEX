@@ -497,6 +497,7 @@ function ProfileSheet({
             <div className="grid gap-2">
               <Label htmlFor="p-name">名称</Label>
               <Input
+                autoComplete="off"
                 id="p-name"
                 placeholder="例如：OpenAI 生产"
                 value={name}
@@ -522,6 +523,7 @@ function ProfileSheet({
             <Label htmlFor="p-model">模型</Label>
             <div className="flex gap-2">
               <Input
+                autoComplete="off"
                 id="p-model"
                 className="font-mono"
                 placeholder="claude-opus-4-8"
@@ -568,6 +570,7 @@ function ProfileSheet({
           <div className="grid gap-2">
             <Label htmlFor="p-base-url">Base URL（可选）</Label>
             <Input
+              autoComplete="off"
               id="p-base-url"
               className="font-mono"
               placeholder="https://api.openai.com/v1"
@@ -579,6 +582,7 @@ function ProfileSheet({
           <div className="grid gap-2">
             <Label htmlFor="p-proxy">代理（可选）</Label>
             <Input
+              autoComplete="off"
               id="p-proxy"
               className="font-mono"
               placeholder="socks5://user:pass@127.0.0.1:1080 · http://127.0.0.1:8080"
@@ -594,6 +598,7 @@ function ProfileSheet({
           <div className="grid gap-2">
             <Label htmlFor="p-session-header">自定义会话头（可选）</Label>
             <Input
+              autoComplete="off"
               id="p-session-header"
               className="font-mono"
               placeholder="如 x-session-id（留空=不发送）"
@@ -610,6 +615,7 @@ function ProfileSheet({
           <div className="grid gap-2">
             <Label htmlFor="p-api-key">API Key</Label>
             <Input
+              autoComplete="new-password"
               id="p-api-key"
               type="password"
               placeholder={keyHint ? `已设置（${keyHint}），留空保持不变` : "sk-…"}
@@ -621,15 +627,30 @@ function ProfileSheet({
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="grid gap-2">
               <Label htmlFor="p-rps">每秒限速</Label>
-              <Input id="p-rps" type="number" min={0} value={rps} onChange={(e) => setRps(e.target.value)} />
+              <Input
+                autoComplete="off"
+                id="p-rps"
+                type="number"
+                min={0}
+                value={rps}
+                onChange={(e) => setRps(e.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="p-rpm">每分钟限速</Label>
-              <Input id="p-rpm" type="number" min={0} value={rpm} onChange={(e) => setRpm(e.target.value)} />
+              <Input
+                autoComplete="off"
+                id="p-rpm"
+                type="number"
+                min={0}
+                value={rpm}
+                onChange={(e) => setRpm(e.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="p-cw">上下文窗口(K)</Label>
               <Input
+                autoComplete="off"
                 id="p-cw"
                 type="number"
                 min={0}
@@ -656,6 +677,7 @@ function ProfileSheet({
                 </p>
               </div>
               <Input
+                autoComplete="off"
                 id="p-priority"
                 type="number"
                 className="w-24 shrink-0"
@@ -699,6 +721,7 @@ function ProfileSheet({
                 </p>
               </div>
               <Input
+                autoComplete="off"
                 id="p-max-tokens"
                 type="number"
                 min={0}
