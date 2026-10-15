@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ProxyEgressStatus } from "@/components/proxy-egress-status";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -593,6 +594,9 @@ function ProfileSheet({
               仅 LLM 出站请求走此代理，支持 http/https/socks5，可带账号密码（如
               socks5://user:pass@host:port，密码含特殊字符需 URL 编码）；留空表示不使用代理（直连）。
             </p>
+            {!isNew && (
+              <ProxyEgressStatus proxy={profile?.proxy ?? ""} draftProxy={proxy} />
+            )}
           </div>
 
           <div className="grid gap-2">

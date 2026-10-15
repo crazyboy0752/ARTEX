@@ -812,6 +812,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/notify/deliveries", s.notifyListDeliveries)
 	mux.HandleFunc("POST /api/notify/deliveries/{id}/retry", s.notifyRetryDelivery)
 	mux.HandleFunc("POST /api/settings/web-search/test", s.testWebSearch)
+	// 出口代理生效探测：实拨一次，回报观察到的出口 IP 与直连对照组。控制台
+	// 用它显示全局代理 / 网络搜索代理 / 每条 LLM 配置代理的「已生效 / 不生效」。
+	mux.HandleFunc("POST /api/settings/proxy-egress", s.testProxyEgress)
 	mux.HandleFunc("GET /api/report", s.getReport)
 	mux.HandleFunc("GET /api/chat/mentions", s.searchChatMentions)
 	mux.HandleFunc("POST /api/chat", s.chat)

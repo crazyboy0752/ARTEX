@@ -824,6 +824,17 @@ export const api = {
     brave_search_api_key?: string;
     tavily_search_api_key?: string;
   }) => post<{ ok: boolean; error?: string; count?: number; backend?: string }>(`/settings/web-search/test`, patch),
+  // 实测一条出口代理是否真正生效：拨一次并回报观察到的出口 IP 与直连对照组。
+  // proxy 留空 = 探测直连出口。全局代理 / 网络搜索代理 / LLM 配置代理共用此接口。
+  testProxyEgress: (proxy: string) =>
+    post<{
+      ok: boolean;
+      reachable: boolean;
+      egress_ip: string;
+      direct_ip: string;
+      error?: string;
+      elapsed_ms: number;
+    }>(`/settings/proxy-egress`, { proxy }),
 
   // ---- 漏洞 IM 推送 ----
   // 渠道是多实例资源（同一类型可配多个机器人、各有过滤规则），因此独立成组，

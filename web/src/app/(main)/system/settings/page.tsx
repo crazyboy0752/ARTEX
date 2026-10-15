@@ -17,6 +17,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ProxyEgressStatus } from "@/components/proxy-egress-status";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -41,6 +42,10 @@ export default function SystemSettingsPage() {
   const [savingProxy, setSavingProxy] = React.useState(false);
   const [globalProxyInput, setGlobalProxyInput] = React.useState("");
   const [savingGlobalProxy, setSavingGlobalProxy] = React.useState(false);
+  const [savedGlobalProxy, setSavedGlobalProxy] = React.useState("");
+  const [globalProxyProbeRevision, setGlobalProxyProbeRevision] = React.useState(0);
+  const [savedWebSearchProxy, setSavedWebSearchProxy] = React.useState("");
+  const [webSearchProxyProbeRevision, setWebSearchProxyProbeRevision] = React.useState(0);
   // 红队环境：预置行（key 固定）+ 自定义行；保存时合成为一个 map。
   const REDTEAM_PRESETS = [
     { key: "FOFA_KEY", placeholder: "FOFA API Key（fofa-recon 资产测绘）" },
@@ -72,7 +77,9 @@ export default function SystemSettingsPage() {
     setBraveKeySet(!!s.brave_key_set);
     setTavilyKeySet(!!s.tavily_key_set);
     setProxyInput(s.web_search_proxy ?? "");
+    setSavedWebSearchProxy(s.web_search_proxy ?? "");
     setGlobalProxyInput(s.global_proxy ?? "");
+    setSavedGlobalProxy(s.global_proxy ?? "");
     const rt = s.redteam_env ?? {};
     const presetKeys = new Set<string>(REDTEAM_PRESETS.map((p) => p.key));
     setRedteamRows([
@@ -240,6 +247,7 @@ export default function SystemSettingsPage() {
       .setSettings({ web_search_proxy: proxyInput.trim() })
       .then((s) => {
         apply(s);
+        setWebSearchProxyProbeRevision((revision) => revision + 1);
         toast.success(proxyInput.trim() ? "已保存出口代理" : "已清除出口代理（改为直连）");
       })
       .catch((e) => toast.error("保存失败：" + (e as Error).message))
@@ -252,6 +260,7 @@ export default function SystemSettingsPage() {
       .setSettings({ global_proxy: globalProxyInput.trim() })
       .then((s) => {
         apply(s);
+        setGlobalProxyProbeRevision((revision) => revision + 1);
         toast.success(globalProxyInput.trim() ? "已保存全局代理" : "已清除全局代理（改为直连）");
       })
       .catch((e) => toast.error("保存失败：" + (e as Error).message))
@@ -402,8 +411,14 @@ export default function SystemSettingsPage() {
               </Button>
             </div>
             <p className="text-muted-foreground text-xs">
-              {globalProxyInput.trim() ? "已配置 · 所有目标流量经此代理出网" : "未配置 · 目标流量直连出网"}
+              {savedGlobalProxy.trim() ? "当前已保存 · 所有目标流量经此代理出网" : "当前未配置 · 目标流量直连出网"}
             </p>
+            <ProxyEgressStatus
+              proxy={savedGlobalProxy}
+              draftProxy={globalProxyInput}
+              revision={globalProxyProbeRevision}
+              auto={loaded}
+            />
           </CardContent>
         </Card>
 
@@ -711,6 +726,12 @@ export default function SystemSettingsPage() {
                 <p className="text-muted-foreground text-xs">
                   独立出口代理，仅用于访问搜索端点（VPN/SOCKS 等）。与记录流量的 MITM 代理无关；网络不通时经此代理访问。
                 </p>
+                <ProxyEgressStatus
+                  proxy={savedWebSearchProxy}
+                  draftProxy={proxyInput}
+                  revision={webSearchProxyProbeRevision}
+                  auto={loaded}
+                />
               </div>
             )}
 
