@@ -2,7 +2,16 @@
 
 import * as React from "react";
 
-import { CheckCircle2Icon, CopyIcon, PencilIcon, PlusIcon, SearchIcon, TargetIcon, Trash2Icon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  CopyIcon,
+  DownloadIcon,
+  PencilIcon,
+  PlusIcon,
+  SearchIcon,
+  TargetIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -288,6 +297,60 @@ export default function KnowledgePage() {
     }
   }
 
+  // 导出为 Markdown：把条目元数据 + 正文落成一份自包含的 .md，便于离线归档或
+  // 交给其它工具。正文按原文放进围栏块，不做语法转义——POC 正文多是脚本/请求，
+  // 改写反而失真。文件名用 code（稳定 slug），非法字符替换为下划线。
+  function exportMarkdown(p: PocEntry) {
+    const src = detail?.code === p.code ? detail : p; // 正文只在详情里有
+    const lines: string[] = [];
+
+    lines.push(`# ${src.title || src.code}`, "");
+    const meta: [string, string | undefined][] = [
+      ["code", src.code],
+      ["类型", KIND_LABEL[src.kind] ?? src.kind],
+      ["归类", src.category_name || src.category],
+      ["层", src.layer === "nuclei" ? "nuclei 模板层" : "POC 层"],
+      ["CVE", src.cve],
+      ["组件", src.component],
+      ["影响版本", src.versions],
+      ["危害", src.severity ? (SEV_LABEL[src.severity] ?? src.severity) : ""],
+      ["语言", src.language],
+      ["来源", src.source],
+      ["参考链接", src.source_url],
+      ["复用次数", String(src.hit_count ?? 0)],
+      ["验证状态", src.verified ? "已验证" : "未验证"],
+      ["创建", fmtTime(src.created_at)],
+      ["更新", fmtTime(src.updated_at)],
+    ];
+    for (const [k, v] of meta) {
+      if (v) lines.push(`- **${k}**：${v}`);
+    }
+    if (src.tags) lines.push(`- **标签**：${src.tags}`);
+
+    if (src.description) lines.push("", "## 描述", "", src.description);
+    if (src.usage) lines.push("", "## 用法", "", src.usage);
+    if (src.verified && src.verified_note) lines.push("", "## 验证证据", "", src.verified_note);
+
+    if (src.content) {
+      // 正文里若已含三反引号，围栏加长，避免提前闭合。
+      const fence = src.content.includes("```") ? "````" : "```";
+      lines.push("", "## 正文", "", `${fence}${src.language || ""}`, src.content, fence);
+    }
+
+    const md = lines.join("\n") + "\n";
+    const safe = (src.code || "poc").replace(/[^\w.-]+/g, "_");
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safe}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`已导出 ${safe}.md`);
+  }
+
   const active = detail ?? selected;
 
   // ── 渲染 ──
@@ -551,6 +614,10 @@ export default function KnowledgePage() {
                     <Button size="sm" variant="outline" onClick={() => registerHit()}>
                       <TargetIcon className="size-3.5" />
                       登记复用
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => exportMarkdown(active)}>
+                      <DownloadIcon className="size-3.5" />
+                      导出
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => openEdit(active)}>
                       <PencilIcon className="size-3.5" />
