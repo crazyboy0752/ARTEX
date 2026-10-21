@@ -506,6 +506,7 @@ func (s *Server) seedOrchestrationTools() {
 	// 注：pentest 的默认工具绑定无需迁移——BuiltinToolSeeds 在全新初始化时就把
 	// list_assets/insert_assets/report_finding/list_findings/list_companies 连同
 	// pentest 一起 seed 好了（项目尚无旧库，不做迁移）。
+	s.reseedBreachPrompts() // 破甲:动手类 agent 的默认正文升级(放最后,前面的 reseed 都跑完再判指纹)
 }
 
 // refreshBuiltinToolSchemas propagates code schema/description changes on the
@@ -621,6 +622,64 @@ func (s *Server) reseedMainAgentPrompt() {
 		return
 	}
 	log.Printf("[prompts] mainagent 提示词已追加新默认版本(加入目标达成后反问建目标,一次性)")
+}
+
+// reseedBreachPrompts 把「动手类」agent 的提示词刷成【当前代码默认】，为破甲模式铺路。
+//
+// 为什么必须做：SeedPromptIfEmpty 是首插入 only，所以改了代码里的默认正文，存量库
+// 一个字都收不到 —— 启动后行为跟改动前完全一样，看起来像"代码没生效"。这里用版本
+// 管理【追加一个新版本】并切过去(ResetPromptToDefault)，旧版本仍留在历史里。
+//
+// 与 reseedGoalsPrompt/reseedMainAgentPrompt 的关键差别：那两条无条件刷，这条会先
+// 判断当前正文是否仍是【我们发的旧内置默认】。指纹是旧正文里的 "授权渗透测试系统"
+// 这个短语 —— 破甲改造把它从所有动手类 agent 的正文里删掉了。用户自己改过的正文
+// 通常不含这个完整短语，因此不会被悄悄覆盖（真想换回默认可在 UI 点恢复）。
+//
+// goals 不在名单里：它只拆目标、不执行动作，且已有自己的 reseed flag。reporter 与
+// retester 在名单里 —— 它们要产出可运行的 exploit 代码 / 用原 PoC 再打一次，是最容易
+// 自我审查的两个位置，偏偏最不容易被想到。
+func (s *Server) reseedBreachPrompts() {
+	const flag = "breach_mode_prompts_v1"
+	if v, _, _ := s.m.pg.GetSetting(flag); v == "true" {
+		return
+	}
+	defer func() { _ = s.m.pg.SetSetting(flag, "true") }() // 无论成功与否只尝试一次
+
+	seeds := agent.BuiltinPromptSeeds()
+	targets := []struct{ key, tmpl string }{
+		{"worker", seeds["worker"]},
+		{"pentest", seeds["pentest"]},
+		{"mainagent", seeds["mainagent"]},
+		{"planner", seeds["planner"]},
+		{"reporter", agent.ReporterDefaultPrompt},
+		{db.FindingRetestAgentKey, agent.RetesterDefaultPrompt},
+	}
+	for _, t := range targets {
+		if t.tmpl == "" {
+			continue
+		}
+		a, err := s.m.pg.GetAgentByKey(t.key)
+		if err != nil || a == nil {
+			continue // 全新库尚未建该行：seedPrompts 会直接 seed 最新默认，无需迁移
+		}
+		cur, err := s.m.pg.CurrentPrompt(a.ID)
+		if err != nil {
+			continue
+		}
+		if cur == t.tmpl {
+			continue // 已是当前默认
+		}
+		// 只在"仍是旧内置默认"时升级，用户自定义的正文不动。
+		if !strings.Contains(cur, "授权渗透测试系统") {
+			log.Printf("[prompts] %s 的正文已被自定义，跳过破甲默认升级（可在 UI 恢复默认）", t.key)
+			continue
+		}
+		if _, err := s.m.pg.ResetPromptToDefault(a.ID, t.tmpl); err != nil {
+			log.Printf("[prompts] %s 破甲默认升级失败: %v", t.key, err)
+			continue
+		}
+		log.Printf("[prompts] %s 提示词已追加破甲默认版本（删负向框架、范围判断下沉到数据层）", t.key)
+	}
 }
 
 // reseedPlannerPrompt 把 planner 提示词刷成【当前代码默认】——默认正文做了精简重构,并把「克制」降级为
