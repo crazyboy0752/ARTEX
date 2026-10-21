@@ -105,6 +105,9 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "allowed") variant = "default";
   if (status === "denied") variant = "destructive";
   if (status === "pending") variant = "secondary";
+  // observed = 本来会被拦、按破甲语义放过。用 secondary 与"已允许"（人工批准）区分开：
+  // 两者对模型都是放行，但对人不是同一件事。
+  if (status === "observed") variant = "secondary";
   return <Badge variant={variant}>{labels[status] ?? status}</Badge>;
 }
 
@@ -811,6 +814,7 @@ export function ApprovalRecords({ taskId }: { taskId?: string }) {
                 <SelectItem value="denied">已拒绝</SelectItem>
                 <SelectItem value="pending">待审批</SelectItem>
                 <SelectItem value="allowed">已允许</SelectItem>
+                <SelectItem value="observed">已放行（破甲）</SelectItem>
                 <SelectItem value="timeout">已超时</SelectItem>
               </SelectGroup>
             </SelectContent>

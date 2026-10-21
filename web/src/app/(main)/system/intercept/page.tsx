@@ -180,6 +180,15 @@ function ActionBadge({ action }: { action: InterceptAction }) {
   return <Badge variant="outline" className="border-amber-400 text-amber-600">申请</Badge>;
 }
 
+// ClassBadge 显示这条规则的归类。destructive = 不可逆破坏，任何模式都硬拒；
+// offensive = 攻击行为本身，命中只留一条"已放行（破甲）"审计、不阻塞执行。
+// 这个区分决定了"为什么这条被挡住、那条被放过"，必须能在规则列表里直接看到。
+function ClassBadge({ cls }: { cls?: "destructive" | "offensive" }) {
+  if (cls === "offensive") return <Badge variant="secondary">攻击面</Badge>;
+  if (cls === "destructive") return <Badge variant="destructive">不可逆</Badge>;
+  return <span className="text-xs text-muted-foreground">—</span>;
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -692,6 +701,7 @@ export default function InterceptPage() {
                   <TableHead className="w-[80px]">类型</TableHead>
                   <TableHead>模式</TableHead>
                   <TableHead className="w-[72px]">策略</TableHead>
+                  <TableHead className="w-[88px]">类别</TableHead>
                   <TableHead className="w-[64px] text-center">启用</TableHead>
                   <TableHead className="w-[80px]" />
                 </TableRow>
@@ -720,6 +730,9 @@ export default function InterceptPage() {
                     </TableCell>
                     <TableCell>
                       <ActionBadge action={rule.action} />
+                    </TableCell>
+                    <TableCell>
+                      <ClassBadge cls={rule.class} />
                     </TableCell>
                     <TableCell className="text-center">
                       <Switch
