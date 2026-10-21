@@ -323,9 +323,9 @@ func (s *Server) interceptHistory(w http.ResponseWriter, r *http.Request) {
 func interceptFilterParams(q url.Values) (db.InterceptApprovalFilter, error) {
 	filter := db.InterceptApprovalFilter{Status: q.Get("status"), DecisionSource: q.Get("decision_source")}
 	switch filter.Status {
-	case "", "pending", "allowed", "denied", "timeout":
+	case "", "pending", "allowed", "denied", "timeout", "observed":
 	default:
-		return filter, fmt.Errorf("status 必须是 pending、allowed、denied 或 timeout")
+		return filter, fmt.Errorf("status 必须是 pending、allowed、denied、timeout 或 observed")
 	}
 	switch filter.DecisionSource {
 	case "", "model", "rule", "unknown":

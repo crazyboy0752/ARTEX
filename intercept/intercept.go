@@ -290,6 +290,10 @@ type Decision struct {
 	ConfigDigest     string
 	ProfileID        int64
 	Action           string // "allow" | "deny" | "ask"
+	// Class 该裁决来自哪一类规则（destructive | offensive）。destructive 的 deny 是
+	// 底线，任何情况下硬拒；offensive 的 deny 在破甲语义下只"改道"。judge 裁决的
+	// Class 为空（它不来自规则表）。
+	Class            string
 	Message          string
 	RuleID           int64
 	TimeoutEnabled   bool
@@ -520,6 +524,7 @@ func (i *Interceptor) Match(toolName string, input []byte) (Decision, bool) {
 			return Decision{
 				RuleName: r.Name, ConfigDigest: digestInput(configJSON),
 				Action:         r.Action,
+				Class:          r.Class,
 				Message:        msg,
 				RuleID:         r.ID,
 				TimeoutEnabled: r.TimeoutEnabled,

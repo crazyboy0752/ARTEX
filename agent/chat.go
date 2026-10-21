@@ -88,7 +88,13 @@ func chatWorkDirSpec(workDir string) string {
 // chatSystem renders the DB-managed prompt body for agentKey. Custom agents have
 // no per-key in-code default, so DefaultAssistantPrompt is the render fallback.
 func chatSystem(agentKey, dataDir, workDir string) string {
-	return renderSystem(agentKey, DefaultAssistantPrompt, chatVars{DataDir: dataDir, Now: nowStr()}) + chatWorkDirSpec(workDir)
+	body := renderSystem(agentKey, DefaultAssistantPrompt, chatVars{DataDir: dataDir, Now: nowStr()}) + chatWorkDirSpec(workDir)
+	// pentest 是唯一"自己动手打"的对话型 agent（其余对话 agent 只操作平台或写报告），
+	// 给它和 worker 同一份落地动作模板：可照抄的骨架比任何一句"你被授权"都管用。
+	if agentKey == "pentest" {
+		body += workerPayloadBlock()
+	}
+	return body
 }
 
 // chatVars carries the runtime variables a custom agent's prompt may reference.

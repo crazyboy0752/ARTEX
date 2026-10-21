@@ -83,7 +83,10 @@ func TestSteerHooksStopNudgesEmptyTurn(t *testing.T) {
 		}
 	})
 
-	t.Run("有正文或工具时不介入", func(t *testing.T) {
+	// 注意语义已收紧：有正文【且不含拒答/降级信号】才不介入。带"我不能/先验证一下/
+	// 我来上传"这类正文的回合现在会判成 refusal/degraded 并注入续跑，见
+	// engine_notoolturn_test.go。
+	t.Run("正常结论不介入", func(t *testing.T) {
 		h := steerHooks{nudges: &atomic.Int64{}, limit: defaultEmptyTurnNudges}
 		normal := []llm.Message{{
 			Role:    llm.RoleAssistant,

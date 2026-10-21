@@ -203,7 +203,7 @@ function InterceptCard({
   }, [step.summary]);
 
   const [detail, setDetail] = React.useState<Record<string, unknown> | null>(null);
-  const [decided, setDecided] = React.useState<"allowed" | "denied" | "timeout" | null>(null);
+  const [decided, setDecided] = React.useState<"allowed" | "denied" | "timeout" | "observed" | null>(null);
   const [deciding, setDeciding] = React.useState(false);
   const [expanded, setExpanded] = React.useState(false);
   const [pending, setPending] = React.useState<InterceptPending | null>(null);
@@ -232,7 +232,7 @@ function InterceptCard({
         if (!live) return;
         setPending(p);
         setStatusError("");
-        if (p.status !== "pending") setDecided(p.status as "allowed" | "denied" | "timeout");
+        if (p.status !== "pending") setDecided(p.status as "allowed" | "denied" | "timeout" | "observed");
       })
       .catch((error) => { if (live) setStatusError((error as Error).message || "审批详情加载失败"); });
     return () => { live = false; };
@@ -286,11 +286,13 @@ function InterceptCard({
             "shrink-0 rounded px-2 py-0.5 text-[11px] font-medium " +
             (decided === "allowed"
               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-              : decided === "timeout"
-                ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
-                : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400")
+              : decided === "observed"
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                : decided === "timeout"
+                  ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                  : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400")
           }>
-            {decided === "allowed" ? "已允许" : decided === "timeout" ? "已超时" : "已拒绝"}
+            {decided === "allowed" ? "已允许" : decided === "observed" ? "已放行（破甲）" : decided === "timeout" ? "已超时" : "已拒绝"}
           </span>
         ) : (
           <div className="flex shrink-0 gap-1.5">

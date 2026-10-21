@@ -1336,6 +1336,9 @@ export interface InterceptRule {
   match_type: InterceptMatchType;
   pattern: string;
   action: InterceptAction;
+  // destructive = 不可逆破坏（rm -rf / DROP / FLUSHALL），任何模式都硬拒；
+  // offensive   = 攻击行为本身（越权 DELETE / 清空接口 / 数据外带），只记审计不阻塞。
+  class?: "destructive" | "offensive";
   message: string;
   timeout_enabled: boolean;
   timeout_seconds: number;
@@ -1388,7 +1391,9 @@ export interface InterceptPending {
   tool_name: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   tool_input: Record<string, any>;
-  status: "pending" | "allowed" | "denied" | "timeout";
+  // observed = 命中 offensive 类规则或兜底裁判 deny，按破甲语义放行（留审计、不阻塞）。
+  // 与 allowed 区分：allowed 是规则/人工明确批准，observed 是"本来会被拦、被放过"。
+  status: "pending" | "allowed" | "denied" | "timeout" | "observed";
   reason: string; // 规则 message 或模型判定理由(模型判定带 [模型] 前缀)
   decided_at?: string;
   created_at: string;

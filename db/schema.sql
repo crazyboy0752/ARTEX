@@ -1039,6 +1039,11 @@ CREATE TABLE IF NOT EXISTS intercept_rules (
     match_type      TEXT NOT NULL CHECK (match_type IN ('string', 'regex')),
     pattern         TEXT NOT NULL,
     action          TEXT NOT NULL CHECK (action IN ('allow', 'deny', 'ask')),
+    -- class 把规则拆成两件正交的事（见 docs/breach-mode）：
+    --   destructive = 不可逆破坏（rm -rf / DROP / FLUSHALL / 关机），渗透永远不需要，破甲也不放行；
+    --   offensive   = 攻击行为本身（越权 DELETE / 清空接口 / 数据外带），破甲模式下只"改道"不"禁止"。
+    -- 默认取 destructive 是安全侧：新库/老库迁移时尚未打标的规则一律按不可逆处理。
+    class           TEXT NOT NULL DEFAULT 'destructive' CHECK (class IN ('destructive', 'offensive')),
     message         TEXT NOT NULL DEFAULT '',
     timeout_enabled BOOLEAN NOT NULL DEFAULT true,
     timeout_seconds INTEGER NOT NULL DEFAULT 60,
@@ -1049,6 +1054,9 @@ CREATE TABLE IF NOT EXISTS intercept_rules (
 DROP TRIGGER IF EXISTS trg_intercept_rules_upd ON intercept_rules;
 CREATE TRIGGER trg_intercept_rules_upd BEFORE UPDATE ON intercept_rules
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+-- 已有库补列（幂等）。默认 destructive = 未打标前一律按不可逆破坏处理，宁严不松；
+-- 具体哪些属于 offensive 由 seedInterceptRuleClasses() 按规则名单独打标。
+ALTER TABLE intercept_rules ADD COLUMN IF NOT EXISTS class TEXT NOT NULL DEFAULT 'destructive';
 
 CREATE TABLE IF NOT EXISTS intercept_pending (
     id              BIGSERIAL PRIMARY KEY,
@@ -1069,6 +1077,12 @@ CREATE INDEX IF NOT EXISTS idx_intercept_pending_status ON intercept_pending(sta
 CREATE INDEX IF NOT EXISTS idx_intercept_pending_task   ON intercept_pending(task_id, created_at DESC);
 -- 补旧库:reason 列(已发版,加列要带 IF NOT EXISTS)。
 ALTER TABLE intercept_pending ADD COLUMN IF NOT EXISTS reason TEXT NOT NULL DEFAULT '';
+-- 'observed' = 命中 offensive 类规则或兜底裁判 deny，但按破甲语义放行（只留审计、
+-- 不阻塞、不往对话里塞消息）。与 'allowed'（规则/人工明确批准）区分开，事后才能看出
+-- "这一步本来会被拦、是破甲放过去的"。约束名是 PG 自动生成的，按名重建以扩枚举。
+ALTER TABLE intercept_pending DROP CONSTRAINT IF EXISTS intercept_pending_status_check;
+ALTER TABLE intercept_pending ADD CONSTRAINT intercept_pending_status_check
+    CHECK (status IN ('pending', 'allowed', 'denied', 'timeout', 'observed'));
 -- Detail payloads are lazy-loaded; NULL preserves the meaning of legacy history.
 ALTER TABLE intercept_pending ADD COLUMN IF NOT EXISTS audit JSONB;
 ALTER TABLE intercept_pending ADD COLUMN IF NOT EXISTS decision_source TEXT NOT NULL DEFAULT '';

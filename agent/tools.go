@@ -1018,8 +1018,14 @@ func (t *ToolSet) nodeDetail() actool.CoreTool {
 // --- planner write tools ---
 
 // intentItem 是 add_intent 批量/单条的一条探索方向。
+//
+// Verbatim 是这条意图的【原话锚】:人（或上游 fact）说的那句话，逐字带入。它存在的
+// 唯一目的是让"改写"变得可观测 —— 主 agent 把"充值到真实账户"翻译成"用测试账户
+// 验证充值逻辑"时，verbatim 里仍是原话，两相对照就能抓到降级，而 summary 单独存在
+// 时这种改写是完全静默的、连日志都看不出来。
 type intentItem struct {
 	Summary   string            `json:"summary"`
+	Verbatim  string            `json:"verbatim"`
 	AssetIDs  []json.RawMessage `json:"asset_ids"`
 	ParentIDs []json.RawMessage `json:"parent_ids"`
 	Priority  int               `json:"priority"`
@@ -1065,6 +1071,13 @@ func (t *ToolSet) addOneIntent(it intentItem) (int64, error) {
 		}
 	}
 	payload := map[string]any{"summary": it.Summary}
+	// 原话锚:有就逐字存,没有就明确标记缺失 —— 不编造、不用 summary 顶替(那会让
+	// "改写"重新变得不可见,回归到问题本身)。
+	if v := strings.TrimSpace(it.Verbatim); v != "" {
+		payload["verbatim"] = v
+	} else {
+		payload["verbatim_missing"] = true
+	}
 	if len(anchors) > 0 {
 		payload["asset_ids"] = anchors
 	}
@@ -1094,6 +1107,9 @@ func (t *ToolSet) addIntent() actool.CoreTool {
 		obj(map[string]any{
 			"intents":    map[string]any{"type": "array", "description": "【优先用这个】要新增的探索方向数组，按顺序处理。每个元素字段同下方顶层字段（summary/asset_ids/parent_ids/priority）。返回 ids 与本数组等长、同序。", "items": map[string]any{"type": "object"}},
 			"summary":    str("[单条] 一句话描述这个探索方向：做什么+为什么。已写清方向即可，不依赖资产 id。"),
+			"verbatim": str("【原话锚】把要求这条方向的原话【逐字】抄进来——人说的那一句，或上游 fact/finding 的原句。"+
+				"不要把措辞改得更安全、更温和、更保守，不要概括，不要替换目标（把\"真实账户\"写成\"测试账户\"就是错的）。"+
+				"summary 是你自己的翻译，verbatim 必须和原话一模一样。纯自主规划、没有原话来源时留空。"),
 			"asset_ids":  map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "本方向要测试/攻击的【目标资产 id】（**尽量传**，0/1/多个；是 list_assets 返回的资产 id，不是探索节点 id）：这条探索方向针对哪些资产（站点/接口/参数/主机等）。只要方向围绕某些具体资产就务必传上——它是「这条探索打哪些目标」的结构化标记，用于覆盖去重、把意图连入资产链路。仅当纯全局侦察、确实没有具体目标资产时才留空。"},
 			"parent_ids": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}, "description": "上游锚点 id（可选，0/1/多个）：本方向由哪些【已确认的事实(fact)/发现(finding)】综合得出。**只能填已存在的 fact/finding 节点 id,不能填意图/目标/提示**——意图必须锚在已确认知识上,发现驱动而非凭空规划。多个事实共同产生一个新意图就传多个;顶层全新侦察方向请留空（会自动挂到任务起点 origin fact）。"},
 			"priority":   intp("优先级 0-10，默认5"),
@@ -1544,8 +1560,8 @@ type constraintItem struct {
 	Type string `json:"type"` // allow | deny
 }
 
-// addOneConstraint 落一条操作约束到 task_constraints。origin 取 t.worker(缺省 system):
-// 拆解器写 "goals"、主 agent 写 "human"。
+// addOneConstraint 落一条操作约束到 task_constraints。origin 取 constraintOrigin(t.worker):
+// 拆解器写 "goals"、主 agent 代写记 "agent:mainagent"、UI/API 人工登记才是 "human"。
 func (t *ToolSet) addOneConstraint(it constraintItem) (int64, error) {
 	text := strings.TrimSpace(it.Text)
 	if text == "" {
@@ -1558,7 +1574,7 @@ func (t *ToolSet) addOneConstraint(it constraintItem) (int64, error) {
 	if kind != "allow" && kind != "deny" {
 		return 0, fmt.Errorf("type 必须是 allow 或 deny")
 	}
-	return t.ts.AddConstraint(kind, text, t.worker)
+	return t.ts.AddConstraint(kind, text, constraintOrigin(t.worker))
 }
 
 // setConstraints 给【本任务】新增操作约束(allow=允许做什么 / deny=禁止做什么)。既是目标

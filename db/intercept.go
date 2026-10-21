@@ -18,6 +18,9 @@ type InterceptRule struct {
 	MatchType      string    `json:"match_type"`
 	Pattern        string    `json:"pattern"`
 	Action         string    `json:"action"`
+	// Class 区分"不可逆破坏"与"攻击行为本身"：前者任何模式都不放行，后者在破甲
+	// 模式下只改道不禁止。见 schema.sql 的列注释。
+	Class          string    `json:"class"`
 	Message        string    `json:"message"`
 	TimeoutEnabled bool      `json:"timeout_enabled"`
 	TimeoutSeconds int       `json:"timeout_seconds"`
@@ -42,12 +45,12 @@ type InterceptPending struct {
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
-const interceptRuleCols = `id, name, enabled, priority, match_target, match_type, pattern, action, message, timeout_enabled, timeout_seconds, timeout_action, created_at, updated_at`
+const interceptRuleCols = `id, name, enabled, priority, match_target, match_type, pattern, action, class, message, timeout_enabled, timeout_seconds, timeout_action, created_at, updated_at`
 
 func scanInterceptRule(row interface{ Scan(...any) error }) (InterceptRule, error) {
 	var r InterceptRule
 	err := row.Scan(&r.ID, &r.Name, &r.Enabled, &r.Priority,
-		&r.MatchTarget, &r.MatchType, &r.Pattern, &r.Action, &r.Message,
+		&r.MatchTarget, &r.MatchType, &r.Pattern, &r.Action, &r.Class, &r.Message,
 		&r.TimeoutEnabled, &r.TimeoutSeconds, &r.TimeoutAction,
 		&r.CreatedAt, &r.UpdatedAt)
 	return r, err
@@ -103,6 +106,17 @@ func (d *DB) DeleteInterceptRule(id int64) error {
 // ToggleInterceptRule flips the enabled state of a rule.
 func (d *DB) ToggleInterceptRule(id int64, enabled bool) error {
 	_, err := d.Exec(`UPDATE intercept_rules SET enabled=$2 WHERE id=$1`, id, enabled)
+	return err
+}
+
+// SetInterceptRuleClass 重设一条规则的归类（destructive | offensive）。
+// 独立于 CreateInterceptRule/UpdateInterceptRule 存在：那两条走列默认值 destructive，
+// 保证"没说清就是不可逆"，归类只由播种与显式调用改变，UI 编辑不会再把它冲掉。
+func (d *DB) SetInterceptRuleClass(id int64, class string) error {
+	if class != "destructive" && class != "offensive" {
+		return fmt.Errorf("class 必须是 destructive 或 offensive，收到 %q", class)
+	}
+	_, err := d.Exec(`UPDATE intercept_rules SET class=$2 WHERE id=$1`, id, class)
 	return err
 }
 

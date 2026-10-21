@@ -279,6 +279,9 @@ ON CONFLICT (name) DO NOTHING`,
 	if err := d.seedDefaultInterceptRulesV3(); err != nil {
 		return fmt.Errorf("seed intercept rules v3: %w", err)
 	}
+	if err := d.seedInterceptRuleClasses(); err != nil {
+		return fmt.Errorf("seed intercept rule classes: %w", err)
+	}
 	if err := d.seedDefaultAssetInterceptRules(); err != nil {
 		return fmt.Errorf("seed asset intercept rules: %w", err)
 	}
@@ -663,4 +666,40 @@ WHERE NOT EXISTS (SELECT 1 FROM intercept_rules WHERE name = $1)`,
 		return fmt.Errorf("rule %q: %w", name, err)
 	}
 	return d.SetSetting("intercept_default_rules_v3", "done")
+}
+
+// seedInterceptRuleClasses 给内置规则打上 class 归类，把「攻击行为本身」从
+// 「不可逆破坏」里拆出来。
+//
+// 为什么必须拆：破甲模式要放行的是"打"——越权 DELETE、清空类接口、数据外带，
+// 这些是渗透的正常战术动作，可逆或后果可控。而 rm -rf / DROP / FLUSHALL 这类
+// 不可逆破坏，渗透从不需要，一旦放行没有任何战术收益、只有灾难风险。两件事原先
+// 混在同一张表同一个 deny 里，破甲就只能一把全开——那等于给自己埋雷。
+//
+// 新列默认 destructive（见 schema.sql），所以这里只负责把 offensive 那几条改回来；
+// 名单之外的规则永久留在 destructive。带 setting 守卫，重启不覆盖人工调整。
+func (d *DB) seedInterceptRuleClasses() error {
+	if v, _, _ := d.GetSetting("intercept_rule_classes_v1"); v == "done" {
+		return nil
+	}
+	// 只列 offensive：打的是"目标数据被改/被读"，属渗透战术面，破甲时改道放行。
+	// 未列出的（rm -rf、DROP、TRUNCATE、FLUSHALL、dropDatabase、mkfs、dd、
+	// fork 炸弹、关机重启、killall、shred、清防火墙）保持 destructive，任何模式都拦。
+	const q = `
+UPDATE intercept_rules AS r
+   SET class = 'offensive'
+  FROM (VALUES ($1),($2),($3),($4),($5),($6)) AS v(name)
+ WHERE r.name = v.name
+   AND r.class <> 'offensive'`
+	if _, err := d.Exec(q,
+		"[内置] curl / wget 发送 DELETE 请求",
+		"[内置] Python HTTP 客户端 DELETE（requests/httpx/aiohttp）",
+		"[内置] 脚本中声明 HTTP DELETE 方法（JS/通用）",
+		"[内置] 批量清空 / 清除接口路径",
+		"[内置] 删除类接口路径",
+		"[内置] 数据外泄管道",
+	); err != nil {
+		return fmt.Errorf("classify intercept rules: %w", err)
+	}
+	return d.SetSetting("intercept_rule_classes_v1", "done")
 }

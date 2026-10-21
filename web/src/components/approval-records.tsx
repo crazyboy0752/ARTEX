@@ -100,7 +100,7 @@ function ApprovalOrigin({ row, detail = false }: { row: InterceptApprovalRow; de
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const labels: Record<string, string> = { pending: "待审批", allowed: "已允许", denied: "已拒绝", timeout: "已超时" };
+  const labels: Record<string, string> = { pending: "待审批", allowed: "已允许", denied: "已拒绝", timeout: "已超时", observed: "已放行（破甲）" };
   let variant: "default" | "destructive" | "secondary" | "outline" = "outline";
   if (status === "allowed") variant = "default";
   if (status === "denied") variant = "destructive";
@@ -295,7 +295,7 @@ export function ApprovalDetail({
   revision: number;
   readOnly?: boolean;
   defaultExpanded?: boolean;
-  onResolved?: (status: "allowed" | "denied" | "timeout") => void;
+  onResolved?: (status: "allowed" | "denied" | "timeout" | "observed") => void;
 }) {
   const [detail, setDetail] = React.useState<InterceptDetail | null>(null);
   const [error, setError] = React.useState("");
