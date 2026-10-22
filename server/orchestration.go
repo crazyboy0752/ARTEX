@@ -639,7 +639,10 @@ func (s *Server) reseedMainAgentPrompt() {
 // retester 在名单里 —— 它们要产出可运行的 exploit 代码 / 用原 PoC 再打一次，是最容易
 // 自我审查的两个位置，偏偏最不容易被想到。
 func (s *Server) reseedBreachPrompts() {
-	const flag = "breach_mode_prompts_v1"
+	// v2：v1 已经被用掉（首版破甲正文已刷过），这次又重写了 mainagent 的正文
+	// （授权前提前置、去掉满屏否定句），必须 bump 才会再刷一次 —— 否则存量库永远
+	// 停在 v1 的那一版，看起来像"改了代码却没生效"。
+	const flag = "breach_mode_prompts_v2"
 	if v, _, _ := s.m.pg.GetSetting(flag); v == "true" {
 		return
 	}
