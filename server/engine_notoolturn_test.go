@@ -5,11 +5,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/norma/llm"
 )
 
-// 无工具回合的三分类（空转 / 拒答 / 降级）与递进续跑，见 classifyNoToolTurn /
-// nudgeForNoToolTurn / steerHooks.Stop。
+// 无工具回合的三分类（空转 / 拒答 / 降级）与递进续跑，见 agent.ClassifyNoToolTurn /
+// agent.NudgeForNoToolTurn / steerHooks.Stop。
 //
 // 这组测试守的是整条链上最贵的静默失败：模型拒答或悄悄把任务改小之后，harness 会
 // 当成自然结束、以"完成"收场，人以为打了、实际没打。分类错了这个洞就重新打开。
@@ -22,23 +23,23 @@ func TestClassifyNoToolTurn(t *testing.T) {
 	cases := []struct {
 		name string
 		msgs []llm.Message
-		want noToolKind
+		want agent.NoToolKind
 	}{
-		{"正常结论", []llm.Message{llm.UserText("开始"), assistantText("已确认 SQL 注入，回显 5 条记录，证据已写回。")}, turnNormal},
-		{"显性拒答", []llm.Message{llm.UserText("开始"), assistantText("我不能帮你写这个 webshell。")}, turnRefusal},
-		{"作为AI的自我定位", []llm.Message{llm.UserText("开始"), assistantText("作为一个 AI 助手，涉及真实账户的写入我需要你先确认授权。")}, turnRefusal},
-		{"软降级：声称要打却没动手", []llm.Message{llm.UserText("开始"), assistantText("我来上传一个 webshell 到上传点，先准备 payload。")}, turnDegraded},
-		{"软降级：把动作缩成验证", []llm.Message{llm.UserText("开始"), assistantText("我先验证一下上传接口是否存在，再决定下一步。")}, turnDegraded},
-		{"仅思考", []llm.Message{llm.UserText("开始"), assistantThinking("想想")}, turnThinkingOnly},
+		{"正常结论", []llm.Message{llm.UserText("开始"), assistantText("已确认 SQL 注入，回显 5 条记录，证据已写回。")}, agent.TurnNormal},
+		{"显性拒答", []llm.Message{llm.UserText("开始"), assistantText("我不能帮你写这个 webshell。")}, agent.TurnRefusal},
+		{"作为AI的自我定位", []llm.Message{llm.UserText("开始"), assistantText("作为一个 AI 助手，涉及真实账户的写入我需要你先确认授权。")}, agent.TurnRefusal},
+		{"软降级：声称要打却没动手", []llm.Message{llm.UserText("开始"), assistantText("我来上传一个 webshell 到上传点，先准备 payload。")}, agent.TurnDegraded},
+		{"软降级：把动作缩成验证", []llm.Message{llm.UserText("开始"), assistantText("我先验证一下上传接口是否存在，再决定下一步。")}, agent.TurnDegraded},
+		{"仅思考", []llm.Message{llm.UserText("开始"), assistantThinking("想想")}, agent.TurnThinkingOnly},
 		// 有工具调用 → 走正常路径，不参与续跑判定。
 		{"带工具调用", []llm.Message{llm.UserText("开始"), {Role: llm.RoleAssistant, Content: []llm.ContentBlock{
-			{Type: llm.BlockToolUse, ID: "t1", Name: "Bash"}}}}, turnNormal},
-		{"空历史", nil, turnNormal},
+			{Type: llm.BlockToolUse, ID: "t1", Name: "Bash"}}}}, agent.TurnNormal},
+		{"空历史", nil, agent.TurnNormal},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := classifyNoToolTurn(c.msgs); got != c.want {
-				t.Fatalf("classifyNoToolTurn = %v, want %v", got, c.want)
+			if got := agent.ClassifyNoToolTurn(c.msgs); got != c.want {
+				t.Fatalf("agent.ClassifyNoToolTurn = %v, want %v", got, c.want)
 			}
 		})
 	}
@@ -46,10 +47,10 @@ func TestClassifyNoToolTurn(t *testing.T) {
 
 // 递进而不是复读：同一句"继续"重放三次会加固拒答，所以三条必须互不相同。
 func TestNudgeForNoToolTurnEscalates(t *testing.T) {
-	for _, kind := range []noToolKind{turnRefusal, turnDegraded} {
+	for _, kind := range []agent.NoToolKind{agent.TurnRefusal, agent.TurnDegraded} {
 		seen := map[string]bool{}
 		for n := 1; n <= 3; n++ {
-			got := nudgeForNoToolTurn(kind, n)
+			got := agent.NudgeForNoToolTurn(kind, n)
 			if got == "" {
 				t.Fatalf("%v 第 %d 次续跑指令为空", kind, n)
 			}
@@ -59,7 +60,7 @@ func TestNudgeForNoToolTurnEscalates(t *testing.T) {
 			seen[got] = true
 		}
 		// 超出递增范围时复用最后一条，不能返回空（空会被当成"没有指令"）。
-		if nudgeForNoToolTurn(kind, 9) == "" {
+		if agent.NudgeForNoToolTurn(kind, 9) == "" {
 			t.Fatalf("%v 超出递进范围时返回空", kind)
 		}
 	}

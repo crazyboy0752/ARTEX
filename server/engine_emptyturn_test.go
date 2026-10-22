@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Autumn-27/artex/agent"
 	"github.com/Autumn-27/norma/llm"
 )
 
@@ -78,8 +79,8 @@ func TestSteerHooksStopNudgesEmptyTurn(t *testing.T) {
 		if prevent {
 			t.Fatal("空转回合不应硬停")
 		}
-		if len(blocking) != 1 || blocking[0] != emptyTurnNudge {
-			t.Fatalf("blocking = %v, want [emptyTurnNudge]", blocking)
+		if len(blocking) != 1 || blocking[0] != agent.EmptyTurnNudge {
+			t.Fatalf("blocking = %v, want [agent.EmptyTurnNudge]", blocking)
 		}
 	})
 

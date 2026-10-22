@@ -598,6 +598,13 @@ func (s *Server) agentsForTask(t *Task) *taskAgentBundle {
 	main.SetRedteamEnv(s.m.RedteamEnv())
 	main.SetWebSearch(s.webSearchFor("mainagent"))
 	main.SetSteerWork(s.engine.SteerWork) // steer_work：人对运行中 work 实时纠偏
+	// 主 agent 的对话路径此前一个 hook 都没挂（guard 拦截与无工具回合续跑只长在
+	// worker 的 runIntent 上）。它拒绝、把范围改小、要求"先确认一下"的时候，控制台
+	// 都当成一次正常回答收下 —— 而它恰恰是整条降级链的源头（能写意图、能写约束）。
+	// 这里补上：guard 拦截 + 拒答/降级递进续跑。
+	if st, ok := s.m.Task(t.ID); ok && st.Guard != nil {
+		main.SetHooks(agent.NewNoToolNudger(st.Guard.Hooks(), defaultEmptyTurnNudges, "mainagent"))
+	}
 	bundle := &taskAgentBundle{
 		runtime: goalRuntime, plannerRuntime: plannerRuntime, workerRuntime: workerRuntime,
 		mainRuntime: mainRuntime, pl: pl, wk: wk, main: main,
