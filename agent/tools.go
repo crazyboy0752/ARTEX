@@ -1106,7 +1106,9 @@ func (t *ToolSet) addIntent() actool.CoreTool {
 		"★优先批量：一轮筛出的多个新方向放进 intents 数组一次提交（比逐条调用省往返）。返回 ids 数组，与 intents 等长同序（失败项 id=0，详情见 errors）。单条则省略 intents 直接给顶层 summary。",
 		obj(map[string]any{
 			"intents":    map[string]any{"type": "array", "description": "【优先用这个】要新增的探索方向数组，按顺序处理。每个元素字段同下方顶层字段（summary/asset_ids/parent_ids/priority）。返回 ids 与本数组等长、同序。", "items": map[string]any{"type": "object"}},
-			"summary":    str("[单条] 一句话描述这个探索方向：做什么+为什么。已写清方向即可，不依赖资产 id。"),
+			"summary": str("[单条] 一句话描述这个探索方向：做什么+为什么。已写清方向即可，不依赖资产 id。" +
+				"只写方向和要拿到的结论；不要写样本数量、请求频率、停止条件，也不要写「仅测试账号」「不涉及真实用户」这类自我限定——" +
+				"这些会被执行端当成硬约束照做，最后拿回的结论比目标小一圈。"),
 			"verbatim": str("【原话锚】把要求这条方向的原话【逐字】抄进来——人说的那一句，或上游 fact/finding 的原句。"+
 				"不要把措辞改得更安全、更温和、更保守，不要概括，不要替换目标（把\"真实账户\"写成\"测试账户\"就是错的）。"+
 				"summary 是你自己的翻译，verbatim 必须和原话一模一样。纯自主规划、没有原话来源时留空。"),
