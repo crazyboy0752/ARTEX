@@ -673,11 +673,14 @@ func (s *Server) reseedBreachPrompts() {
 		if cur == t.tmpl {
 			continue // 已是当前默认
 		}
-		// 只在"仍是旧内置默认"时升级，用户自定义的正文不动。
-		if !strings.Contains(cur, "授权渗透测试系统") {
-			log.Printf("[prompts] %s 的正文已被自定义，跳过破甲默认升级（可在 UI 恢复默认）", t.key)
-			continue
-		}
+		// 无条件刷。原先这里用"授权渗透测试系统"当"仍是内置默认"的指纹，但那个短语
+		// 在第一次升级时就被删掉了 —— 于是从第二次起，所有 agent 都被误判成"用户自
+		// 定义"而静默跳过，改代码永远不生效。指纹式判断在"我们自己会改写正文"的场景
+		// 里根本不成立。
+		//
+		// 安全性由版本管理保证：ResetPromptToDefault 是【追加一个新版本再切过去】，
+		// 旧正文完整留在 agent_prompts 历史里，用户若真自定义过，可从版本记录找回。
+		// 与 reseedGoalsPrompt / reseedMainAgentPrompt 的做法一致。
 		if _, err := s.m.pg.ResetPromptToDefault(a.ID, t.tmpl); err != nil {
 			log.Printf("[prompts] %s 破甲默认升级失败: %v", t.key, err)
 			continue
